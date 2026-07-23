@@ -18,14 +18,22 @@
   L/100km over full-fill intervals w/ partial-fill accumulation, €/L, €/km, monthly car
   spend. Car tab (4th): tiles + CSS-bar trends + monthly split + fuel log. Categories got a
   stable `system_key` (migration v4) so "Car" survives a rename. 12/12 tests; live-verified.
+- **Phase 3 — recurring & predictions** ✅ PASSED (`journal.md §4`). `recurring_rules`
+  (migration v5). `recurring.ts` pure core (tested): `occurrencesBetween` (month-end clamp +
+  yearly), `projectForecast` (rules + 6-mo avg, no double-count), `detectRecurring`.
+  Idempotent auto-post (external_ref `recur:<id>:<date>` + `last_posted_date`), fires on app
+  open. Plan tab (5th): forecast bars, suggestions w/ prefill, upcoming, rules. 20/20 tests.
 
 ## Next (in order)
-- **Phase 3 — recurring & predictions**: recurring-rule CRUD w/ month-end clamping,
-  upcoming/calendar view, idempotent auto-post w/ catch-up, cashflow forecast, pattern
-  detection. DoD in `specs/wallet.md § Phase 3`. New tables → **migration v5** (append;
-  never edit shipped v1–v4). Follow the patterns: a service module (date/money logic +
-  tests), routes.ts (zod + authed plugin), a screen wired via `api.ts` TanStack hooks.
-- Then Phases 4–6: Bank import · Receipt OCR (photo-only, QR dropped) · Stats & portability.
+- **Phase 4 — bank statement import & sync**: **PDF only** — the user has no CSV export from
+  their bank, so lead with the `pdf.js` text-extraction → row-heuristics path; CSV
+  column-mapping stays in the spec but is secondary. Stage → **dedup** (date + amount +
+  normalized desc/`external_ref`, fuzzy within a day window) so re-importing overlapping
+  months inserts only missing rows. Auto-categorize via merchant memory; review-and-confirm;
+  reversible batch. DoD in `specs/wallet.md § Phase 4`. New tables → **migration v6**.
+  **At Phase 4 start**: ask the user for a representative PDF statement; derive the format,
+  commit a **synthetic/redacted** fixture (never the real statement).
+- Then Phases 5–6: Receipt OCR (photo-only, QR dropped) · Stats & portability.
 
 ## Gate commands (must pass before a phase lands)
 ```
@@ -37,7 +45,7 @@ wsl -d Debian -e sh -lc "cd /mnt/c/Users/nunob/Repositorios/Wallet && coderabbit
 
 ## Resume line
 Open a new session in this repo, say **resume flow**; read `handoff.md` +
-`specs/wallet.md` + the `journal.md` tail, then build **Phase 3** on `flow/wallet`.
+`specs/wallet.md` + the `journal.md` tail, then build **Phase 4** on `flow/wallet`.
 
 ## Gotchas (this machine)
 - Node 25 local; `node:sqlite` loaded via `createRequire` so Vite/vitest don't choke.
