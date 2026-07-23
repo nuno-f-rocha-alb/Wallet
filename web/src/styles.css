@@ -1,0 +1,32 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0f172a;
+  --fg: #e2e8f0;
+  --muted: #94a3b8;
+  --err: #f87171;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+.wrap {
+  max-width: 42rem;
+  margin: 0 auto;
+  /* Respect notch/safe areas since the viewport opts into viewport-fit=cover. */
+  padding: calc(2rem + env(safe-area-inset-top)) calc(1.25rem + env(safe-area-inset-right))
+    calc(2rem + env(safe-area-inset-bottom)) calc(1.25rem + env(safe-area-inset-left));
+}
+h1 {
+  margin: 0 0 1rem;
+}
+.muted {
+  color: var(--muted);
+}
+.err {
+  color: var(--err);
+}

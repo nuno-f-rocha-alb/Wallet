@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dev-dist/
+data/
+*.log
+.env
+.claude/settings.local.json
+reviews/cr-*.txt

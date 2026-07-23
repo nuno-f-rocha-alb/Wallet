@@ -1,0 +1,29 @@
+services:
+  wallet:
+    build: .
+    container_name: wallet
+    restart: unless-stopped
+    # Bind to loopback so ingress only comes through your reverse proxy (+ Authelia),
+    # never directly. If the proxy is another Compose service, drop `ports` and put
+    # both on a shared network with `expose: ["8080"]` instead.
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - wallet-data:/data
+    environment:
+      PORT: 8080
+      DB_PATH: /data/wallet.db
+      WEB_DIR: /app/web/dist
+      # --- Behind Authelia (production) ---
+      # IP(s) of your reverse proxy container/host allowed to set identity headers.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      AUTH_HEADER_USER: ${AUTH_HEADER_USER:-remote-user}
+      AUTH_HEADER_EMAIL: ${AUTH_HEADER_EMAIL:-remote-email}
+      AUTH_HEADER_NAME: ${AUTH_HEADER_NAME:-remote-name}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      # --- Local testing WITHOUT Authelia (leave empty in production) ---
+      AUTH_DEV_USER: ${AUTH_DEV_USER:-}
+      AUTH_DEV_EMAIL: ${AUTH_DEV_EMAIL:-}
+
+volumes:
+  wallet-data:
