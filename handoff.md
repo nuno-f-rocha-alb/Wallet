@@ -24,8 +24,11 @@
   Idempotent auto-post (external_ref `recur:<id>:<date>` + `last_posted_date`), fires on app
   open. Plan tab (5th): forecast bars, suggestions w/ prefill, upcoming, rules. 20/20 tests.
 
-## Phase 4 — bank import (IN PROGRESS on `flow/wallet`, not yet committed)
-Built this session (journal `§5`), gate green (typecheck/lint/**29 tests**/build), **uncommitted**:
+## Phase 4 — bank import (COMMITTED on `flow/wallet` @ `f5b4479`, NOT yet on `main`)
+Built this session (journal `§5`), gate green (typecheck/lint/**29 tests**/build), **CodeRabbit
+0 findings** (2 major + 2 minor fixed: category-ownership validation, O(n) dedup index,
+IBAN/spaced-NIB ref, pdf.js `doc.destroy`). Committed but **held back from `main`** pending the
+manual browser smoke test below.
 - migration **v6**: `bank_imports` + `transactions.import_id` (ON DELETE CASCADE → reversible).
 - `server/src/bank.ts` (+ `bank.test.ts`): pure dedup (exact ref + fuzzy ±1 day), synthesized
   refs, merchant memory; preview/commit/list/revert. All 4 DoD cases tested.
@@ -35,13 +38,16 @@ Built this session (journal `§5`), gate green (typecheck/lint/**29 tests**/buil
   Undo list. `pdfjs-dist` added to web.
 
 ### To finish Phase 4
-1. **CodeRabbit** on the diff (`--uncommitted --include-untracked --base main`); fix findings.
-   (A delayed re-run was queued; the free CLI cap resets in seconds–minutes if hit.)
+1. ✅ CodeRabbit — clean (0 findings).
 2. **Manual browser smoke test** (the one un-automated step — no `file_upload` on the agent's
-   browser surface): `npm run dev:server` (with `AUTH_DEV_USER=alice`) + `npm run dev:web`,
-   open Manage → Import PDF → pick the CGD account → upload a statement → confirm the review
-   table populates → Import → check balances → Undo. Then commit + merge to `main`.
-3. Optional: fix the opening-balance regex on the real CGD layout; generic CSV path; more banks.
+   browser surface): `AUTH_DEV_USER=alice DB_PATH=… PORT=8080 npm run dev:server` + `npm run
+   dev:web`, open Manage → Import PDF → pick the target account → upload a CGD statement →
+   confirm the review table shows new/duplicate rows with category suggestions → Import →
+   check balances → Undo (removes the batch). Re-import the same file → all rows show as
+   duplicates (0 imported).
+3. **Merge to `main`** once the smoke test passes: `git switch main && git merge --ff-only
+   flow/wallet`.
+4. Optional later: opening-balance regex on the real CGD layout; generic CSV path; more banks.
 - **Do not commit the real statement or its data** — only the synthetic fixture in
   `shared/parsers.test.ts`.
 
@@ -58,9 +64,9 @@ wsl -d Debian -e sh -lc "cd /mnt/c/Users/nunob/Repositorios/Wallet && coderabbit
 
 ## Resume line
 Open a new session in this repo, say **resume flow**; read `handoff.md` +
-`specs/wallet.md` + the `journal.md` tail. **Phase 4 is built but uncommitted on
-`flow/wallet`** — finish it via the "To finish Phase 4" steps above (CodeRabbit → manual
-browser smoke test → commit → merge), then move to Phase 5.
+`specs/wallet.md` + the `journal.md` tail. **Phase 4 is committed on `flow/wallet` (`f5b4479`),
+CodeRabbit-clean, but NOT on `main`** — do the manual browser smoke test, merge to `main`,
+then move to Phase 5 (receipt OCR, photo-only).
 
 ## Gotchas (this machine)
 - Node 25 local; `node:sqlite` loaded via `createRequire` so Vite/vitest don't choke.
