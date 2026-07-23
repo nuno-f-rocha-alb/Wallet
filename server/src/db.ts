@@ -150,6 +150,36 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       UPDATE categories SET system_key = 'car' WHERE parent_id IS NULL AND name = 'Car';
     `,
   },
+  {
+    // Phase 3 — recurring rules. day_of_month clamps to the real month length at
+    // occurrence time; month is set only for yearly rules. last_posted_date drives
+    // idempotent auto-post catch-up. Owner-scoped composite FKs (tenant isolation).
+    version: 5,
+    sql: `
+      CREATE TABLE recurring_rules (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id          INTEGER NOT NULL REFERENCES users(id),
+        cadence          TEXT NOT NULL CHECK(cadence IN ('monthly','yearly')),
+        day_of_month     INTEGER NOT NULL CHECK(day_of_month BETWEEN 1 AND 31),
+        month            INTEGER CHECK(month BETWEEN 1 AND 12),
+        amount_cents     INTEGER NOT NULL CHECK(amount_cents <> 0),
+        account_id       INTEGER NOT NULL,
+        category_id      INTEGER,
+        description      TEXT NOT NULL DEFAULT '',
+        note             TEXT,
+        auto_post        INTEGER NOT NULL DEFAULT 0,
+        start_date       TEXT NOT NULL,
+        end_date         TEXT,
+        last_posted_date TEXT,
+        archived         INTEGER NOT NULL DEFAULT 0,
+        created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, id),
+        FOREIGN KEY(user_id, account_id) REFERENCES accounts(user_id, id),
+        FOREIGN KEY(user_id, category_id) REFERENCES categories(user_id, id)
+      );
+      CREATE INDEX idx_recurring_user ON recurring_rules(user_id, archived);
+    `,
+  },
 ];
 
 let _db: DatabaseSync | undefined;

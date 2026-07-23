@@ -145,3 +145,41 @@ typecheck ✓ · lint ✓ · vitest 12/12 ✓ · build ✓. CodeRabbit re-review
 temporarily inconsistent (PENDING vs "Next: Phase 3") — resolved by this PASS.
 
 ### Verdict: PASS
+
+---
+
+## Phase 3 — recurring & predictions
+
+### Requirements (from specs/wallet.md § Phase 3)
+| # | Requirement | Status | Evidence |
+|---|-------------|--------|----------|
+| 1 | Recurring-rule CRUD w/ month-end clamping | MET | `recurring_rules` (migration v5); day-31 clamps to Feb 28/29 (unit test) |
+| 2 | Upcoming/calendar view | MET | `/recurring/upcoming`; Plan tab sorted list; live-verified |
+| 3 | Auto-post (idempotent, catch-up on app open) | MET | run twice → posted 3 then 0 (unit + live); App fires it on load |
+| 4 | Cashflow forecast (rules + historical avg) | MET | `projectForecast` fixture = [1000,900,800] (unit); Plan bars |
+| 5 | Pattern detection (suggest rules from history) | MET | `detectRecurring` recovers a monthly series (unit); Plan "Add rule" prefill |
+| 6 | Yearly cadence | MET | yearly rule fires only in its month (unit test) |
+| 7 | All routes user-scoped + zod-validated | MET | isolation (bob→404/empty); yearly-needs-month + zero-amount → 400 |
+
+### Gate commands
+| Check | Result |
+|-------|--------|
+| `npm run typecheck` | ✓ clean |
+| `npm run lint` | ✓ clean |
+| `npm test` (vitest) | ✓ 20/20 (3 auth + 6 ledger + 3 car + 8 recurring) |
+| `npm run build` | ✓ web PWA + server |
+| Live-verify (endpoint) | ✓ auto-post idempotent 3→0 (balance −49000); forecast; suggestions; upcoming |
+| Live-verify (browser) | ✓ Plan tab: forecast bars, suggestion (Gym 3×), sorted upcoming, rules; suggestion→form prefill |
+| CodeRabbit | see below |
+
+### CodeRabbit findings (iteration 1 → fixed)
+1 major — fixed:
+- **major** `recurringUpdate = recurringBase.partial()` had no `archived` field, so zod
+  stripped `{archived}` from PATCH → archive/unarchive was unreachable though the column +
+  all filters exist. Added `.extend({ archived: z.boolean().optional() })` (matching
+  `vehicleUpdate`); regression test archives a rule and asserts auto-post skips it.
+
+### Gate re-run after fix
+typecheck ✓ · lint ✓ · vitest 20/20 ✓ · build ✓. CodeRabbit re-review: **0 findings**.
+
+### Verdict: PASS

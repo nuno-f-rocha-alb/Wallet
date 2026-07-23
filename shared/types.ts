@@ -140,3 +140,50 @@ export interface CarStatsResponse {
   summary: FuelSummary;
   monthlyCosts: MonthlyCarCost[]; // newest first
 }
+
+// --- Phase 3: recurring & predictions ---
+
+export type Cadence = 'monthly' | 'yearly';
+
+export interface RecurringRule {
+  id: number;
+  cadence: Cadence;
+  dayOfMonth: number; // 1-31, clamped to the real month length at occurrence time
+  month: number | null; // 1-12 for yearly; null for monthly
+  amountCents: number; // signed (- expense, + income)
+  accountId: number;
+  categoryId: number | null;
+  description: string;
+  note: string | null;
+  autoPost: boolean;
+  startDate: string; // YYYY-MM-DD
+  endDate: string | null;
+  lastPostedDate: string | null;
+  archived: boolean;
+}
+
+/** A concrete date a rule fires on, within a window. */
+export interface Occurrence {
+  ruleId: number;
+  date: string; // YYYY-MM-DD
+  description: string;
+  amountCents: number;
+  accountId: number;
+  categoryId: number | null;
+}
+
+export interface ForecastPoint {
+  month: string; // YYYY-MM
+  balanceCents: number; // projected total across accounts at that month-end
+}
+
+/** A recurring series detected in history that has no rule yet. */
+export interface RuleSuggestion {
+  cadence: 'monthly';
+  dayOfMonth: number;
+  amountCents: number;
+  accountId: number;
+  categoryId: number | null;
+  description: string;
+  count: number; // how many matching transactions were found
+}

@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import type { Account, Category, FuelEntry, Transaction, Vehicle } from '@wallet/shared';
-import { useAccounts, useCategories, useMe } from './api';
+import { useEffect, useState } from 'react';
+import type { Account, Category, FuelEntry, RecurringRule, RuleSuggestion, Transaction, Vehicle } from '@wallet/shared';
+import { useAccounts, useCategories, useMe, useRunAutoPost } from './api';
 import { monthLabel, shiftMonth, thisMonth } from './format';
 import { Dashboard } from './components/Dashboard';
 import { Transactions } from './components/Transactions';
 import { Manage } from './components/Manage';
 import { Car } from './components/Car';
+import { Plan } from './components/Plan';
 import { Modal } from './components/Modal';
 import { TransactionForm } from './components/TransactionForm';
 import { AccountForm } from './components/AccountForm';
@@ -13,8 +14,9 @@ import { TransferForm } from './components/TransferForm';
 import { CategoryForm } from './components/CategoryForm';
 import { VehicleForm } from './components/VehicleForm';
 import { FuelForm } from './components/FuelForm';
+import { RecurringForm } from './components/RecurringForm';
 
-type Tab = 'dashboard' | 'transactions' | 'car' | 'manage';
+type Tab = 'dashboard' | 'transactions' | 'car' | 'plan' | 'manage';
 type ModalState =
   | { kind: 'tx'; tx?: Transaction }
   | { kind: 'account'; account?: Account }
@@ -22,6 +24,7 @@ type ModalState =
   | { kind: 'category'; category?: Category }
   | { kind: 'vehicle'; vehicle?: Vehicle }
   | { kind: 'fuel'; vehicleId: number; entry?: FuelEntry }
+  | { kind: 'recurring'; rule?: RecurringRule; suggestion?: RuleSuggestion }
   | null;
 
 export function App() {
@@ -33,6 +36,14 @@ export function App() {
   const accounts = useAccounts();
   const categories = useCategories();
   const close = () => setModal(null);
+
+  // Catch up any due auto-post rules once, on app open (idempotent server-side).
+  const runAutoPost = useRunAutoPost();
+  const { isSuccess: meReady } = me;
+  const { mutate: catchUp } = runAutoPost;
+  useEffect(() => {
+    if (meReady) catchUp();
+  }, [meReady, catchUp]);
 
   // Add-transaction needs an account; if none, send the user to create one first.
   const noAccounts = (accounts.data?.length ?? 0) === 0;
@@ -74,6 +85,13 @@ export function App() {
             onEditFuel={(vehicleId, entry) => setModal({ kind: 'fuel', vehicleId, entry })}
           />
         )}
+        {tab === 'plan' && (
+          <Plan
+            onAddRule={() => setModal({ kind: 'recurring' })}
+            onEditRule={(rule) => setModal({ kind: 'recurring', rule })}
+            onCreateFromSuggestion={(suggestion) => setModal({ kind: 'recurring', suggestion })}
+          />
+        )}
         {tab === 'manage' && (
           <Manage
             onAddAccount={() => setModal({ kind: 'account' })}
@@ -96,8 +114,8 @@ export function App() {
       </button>
 
       {/* bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900">
-        {(['dashboard', 'transactions', 'car', 'manage'] as Tab[]).map((t) => (
+      <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900">
+        {(['dashboard', 'transactions', 'car', 'plan', 'manage'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -136,6 +154,17 @@ export function App() {
       {modal?.kind === 'fuel' && (
         <Modal title={modal.entry ? 'Edit fuel entry' : 'Add fuel'} onClose={close}>
           <FuelForm vehicleId={modal.vehicleId} entry={modal.entry} onClose={close} />
+        </Modal>
+      )}
+      {modal?.kind === 'recurring' && (
+        <Modal title={modal.rule ? 'Edit rule' : 'Add recurring rule'} onClose={close}>
+          <RecurringForm
+            rule={modal.rule}
+            suggestion={modal.suggestion}
+            accounts={accounts.data ?? []}
+            categories={categories.data ?? []}
+            onClose={close}
+          />
         </Modal>
       )}
     </div>

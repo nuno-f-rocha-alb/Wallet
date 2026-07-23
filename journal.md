@@ -113,3 +113,49 @@ CodeRabbit re-review after fixes: **0 code findings** (all 5 resolved). Verdict 
 `reviews/wallet.md`.
 
 **Next**: Phase 3 — recurring rules & predictions.
+
+---
+
+## §4 — Phase 3: recurring & predictions
+
+**What**: Recurring rules + forward-looking predictions, surfaced in a new 5th "Plan" tab.
+Backend (migration v5): `recurring_rules`. Pure, tested core in `recurring.ts`
+(`occurrencesBetween`, `projectForecast`, `detectRecurring`) + DB ops (CRUD, auto-post,
+upcoming, forecast, suggestions). Frontend: Plan tab (forecast CSS bars, suggestions,
+upcoming, rules) + `RecurringForm`; auto-post runs once on app open.
+
+**Decisions / root causes**
+- **Occurrence = clamp, not overflow**: `day_of_month` is stored as given and clamped to the
+  real month length at occurrence time (`Math.min(day, daysInMonth)`), so a "31st" rule fires
+  Feb 28/29 without ever producing an invalid date. Yearly rules carry a `month`; monthly
+  ones leave it null. Pure `occurrencesBetween` is the DoD unit (month-end + yearly + bounds).
+- **Idempotent auto-post via external_ref + last_posted_date**: catch-up posts occurrences in
+  `(last_posted_date, today]` as `source='recurring'` transactions tagged
+  `external_ref='recur:<ruleId>:<date>'`; each insert is guarded by an existence check on that
+  ref and `last_posted_date` advances to today. Running twice posts once (unit + live: 3→0).
+  ponytail: check-then-insert is fine for single-user catch-up; a partial UNIQUE index is the
+  upgrade path if concurrent posting ever appears. Reuses the existing `external_ref` column
+  rather than a new posted-occurrences table.
+- **Forecast without double-counting**: recurring rules are projected explicitly; everything
+  else rides a 6-month historical monthly average that **excludes** `source='recurring'`, so
+  the two streams don't overlap. `projectForecast` is pure and fixture-tested.
+- **Detection = same desc+amount+account, ≥3 distinct months, stable day-of-month**. Monthly
+  only (covers most bills; yearly detection deferred). Service filters out series that already
+  have a rule. Suggestions prefill `RecurringForm` (verified: Gym → €30/day-10/expense).
+- **5th tab, not folded into Dashboard**: Plan is forward-looking (no month selector), so it
+  gets its own tab; month nav stays scoped to dashboard/transactions.
+
+**CodeRabbit (1 major — fixed)**
+- `recurringUpdate` (`recurringBase.partial()`) omitted `archived`, so zod stripped it from
+  PATCH and archive/unarchive was unreachable despite the column + every filter using it.
+  Added `.extend({ archived })` (matching `vehicleUpdate`); regression test archives a rule
+  and asserts auto-post skips it.
+
+**Gate**: typecheck ✓ · lint ✓ · vitest 20/20 (adds 8 recurring: clamp, yearly, bounds,
+forecast ×2, detector, idempotent auto-post+isolation+archive, upcoming/forecast/suggestions)
+✓ · build ✓. Live-verified endpoints + Plan tab in browser. CodeRabbit 0 findings after fix.
+
+**Next**: Phase 4 — bank statement import & sync. **PDF only** (user has no CSV export from
+their bank) → lead with the `pdf.js` text-extraction path; CSV mapping stays in the spec but
+is secondary. Ask the user for a representative PDF statement at Phase 4 start; derive the
+format, commit a synthetic/redacted fixture (never the real statement).

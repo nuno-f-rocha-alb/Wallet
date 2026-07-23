@@ -84,6 +84,35 @@ export const fuelUpdate = fuelCreate.partial().omit({ vehicleId: true });
 
 export const fuelListQuery = z.object({ vehicleId: z.coerce.number().int().positive() });
 
+// --- Phase 3: recurring & predictions ---
+
+const recurringBase = z.object({
+  cadence: z.enum(['monthly', 'yearly']),
+  dayOfMonth: z.number().int().min(1).max(31),
+  month: z.number().int().min(1).max(12).nullable().default(null),
+  amountCents: cents.refine((v) => v !== 0, 'amount cannot be zero'),
+  accountId: z.number().int().positive(),
+  categoryId: z.number().int().positive().nullable().default(null),
+  description: z.string().trim().max(200).default(''),
+  note: z.string().trim().max(500).nullable().default(null),
+  autoPost: z.boolean().default(false),
+  startDate: date,
+  endDate: date.nullable().default(null),
+});
+export const recurringCreate = recurringBase
+  .refine((r) => r.cadence !== 'yearly' || r.month !== null, {
+    message: 'yearly rules need a month',
+    path: ['month'],
+  })
+  .refine((r) => r.endDate === null || r.endDate >= r.startDate, {
+    message: 'end date must be on or after start date',
+    path: ['endDate'],
+  });
+export const recurringUpdate = recurringBase.partial().extend({ archived: z.boolean().optional() });
+
+export const upcomingQuery = z.object({ days: z.coerce.number().int().positive().max(400).default(60) });
+export const forecastQuery = z.object({ months: z.coerce.number().int().positive().max(24).default(6) });
+
 export const txListQuery = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
   accountId: z.coerce.number().int().positive().optional(),

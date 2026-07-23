@@ -9,7 +9,11 @@ import type {
   CarStatsResponse,
   Category,
   DashboardResponse,
+  ForecastPoint,
   FuelEntry,
+  Occurrence,
+  RecurringRule,
+  RuleSuggestion,
   Transaction,
   Transfer,
   User,
@@ -169,5 +173,51 @@ export function useDeleteFuel() {
   return useMutation({
     mutationFn: (id: number) => api<void>(`/fuel/${id}`, { method: 'DELETE' }),
     onSuccess: () => invalidateCar(qc),
+  });
+}
+
+// ---- recurring & predictions ----
+
+export const useRecurring = () =>
+  useQuery({ queryKey: ['recurring'], queryFn: () => api<RecurringRule[]>('/recurring') });
+
+export const useUpcoming = (days = 60) =>
+  useQuery({ queryKey: ['upcoming', days], queryFn: () => api<Occurrence[]>(`/recurring/upcoming?days=${days}`) });
+
+export const useForecast = (months = 6) =>
+  useQuery({ queryKey: ['forecast', months], queryFn: () => api<ForecastPoint[]>(`/forecast?months=${months}`) });
+
+export const useSuggestions = () =>
+  useQuery({ queryKey: ['suggestions'], queryFn: () => api<RuleSuggestion[]>('/recurring/suggestions') });
+
+function invalidatePlan(qc: QueryClient) {
+  for (const k of ['recurring', 'upcoming', 'forecast', 'suggestions']) qc.invalidateQueries({ queryKey: [k] });
+}
+
+export function useSaveRecurring() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (r: Partial<RecurringRule> & { id?: number }) =>
+      r.id ? api<RecurringRule>(`/recurring/${r.id}`, patchBody(r)) : api<RecurringRule>('/recurring', jsonBody(r)),
+    onSuccess: () => invalidatePlan(qc),
+  });
+}
+
+export function useDeleteRecurring() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/recurring/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidatePlan(qc),
+  });
+}
+
+export function useRunAutoPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ posted: number }>('/recurring/run', { method: 'POST' }),
+    onSuccess: (res) => {
+      invalidatePlan(qc);
+      if (res.posted > 0) invalidateLedger(qc); // posted transactions changed balances
+    },
   });
 }

@@ -4,6 +4,7 @@ import { getDb } from './db.js';
 import { HttpError } from './errors.js';
 import * as svc from './service.js';
 import * as car from './car.js';
+import * as rec from './recurring.js';
 import * as S from './schemas.js';
 
 function uid(req: FastifyRequest): number {
@@ -116,5 +117,31 @@ export function registerRoutes(app: FastifyInstance): void {
   app.delete('/api/fuel/:id', async (req, reply) => {
     car.deleteFuelEntry(getDb(), uid(req), paramId(req));
     return reply.code(204).send();
+  });
+
+  // ---- recurring rules ----
+  app.get('/api/recurring', async (req) => rec.listRules(getDb(), uid(req)));
+  app.post('/api/recurring', async (req, reply) => {
+    const r = rec.createRule(getDb(), uid(req), S.recurringCreate.parse(req.body));
+    return reply.code(201).send(r);
+  });
+  app.patch('/api/recurring/:id', async (req) =>
+    rec.updateRule(getDb(), uid(req), paramId(req), S.recurringUpdate.parse(req.body)),
+  );
+  app.delete('/api/recurring/:id', async (req, reply) => {
+    rec.deleteRule(getDb(), uid(req), paramId(req));
+    return reply.code(204).send();
+  });
+  app.post('/api/recurring/run', async (req) => rec.runAutoPost(getDb(), uid(req)));
+  app.get('/api/recurring/upcoming', async (req) => {
+    const { days } = S.upcomingQuery.parse(req.query);
+    return rec.upcoming(getDb(), uid(req), days);
+  });
+  app.get('/api/recurring/suggestions', async (req) => rec.suggestions(getDb(), uid(req)));
+
+  // ---- forecast ----
+  app.get('/api/forecast', async (req) => {
+    const { months } = S.forecastQuery.parse(req.query);
+    return rec.forecast(getDb(), uid(req), months);
   });
 }
