@@ -65,7 +65,7 @@ function toTransfer(r: Row): Transfer {
 }
 
 // Whitelisted column map so PATCH only ever touches known columns.
-function applyUpdate(
+export function applyUpdate(
   db: DatabaseSync,
   table: string,
   columns: Record<string, string>,

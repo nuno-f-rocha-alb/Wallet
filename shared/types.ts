@@ -84,3 +84,59 @@ export interface DashboardResponse {
   byCategory: CategoryTotal[];
   accounts: Account[]; // each with balanceCents
 }
+
+// --- Phase 2: car module ---
+
+export interface Vehicle {
+  id: number;
+  name: string;
+  make: string | null;
+  plate: string | null;
+  archived: boolean;
+  sort: number;
+}
+
+export interface FuelEntry {
+  id: number;
+  vehicleId: number;
+  date: string; // YYYY-MM-DD
+  odometerKm: number; // integer km
+  litersMl: number; // integer millilitres
+  totalPriceCents: number;
+  isFull: boolean; // full tank (used for L/100km intervals)
+  note: string | null;
+}
+
+/** One trend point per fuel entry. l100km is null unless this is a full fill closing an interval. */
+export interface FuelPoint {
+  date: string;
+  odometerKm: number;
+  eurPerL: number; // this fill's price / litres
+  l100km: number | null; // consumption over the interval since the previous full fill
+}
+
+export interface FuelSummary {
+  avgL100km: number | null;
+  eurPerL: number | null; // overall consumed cost / consumed litres
+  eurPerKm: number | null;
+  totalDistanceKm: number; // distance covered by full-fill intervals
+  totalLiters: number; // litres consumed over those intervals
+  totalCostCents: number; // cost of that fuel
+}
+
+/** Car spend for one month = fuel log + non-reimbursed Car-category costs − reimbursements. */
+export interface MonthlyCarCost {
+  month: string; // YYYY-MM
+  fuelCents: number; // from the fuel log (this vehicle)
+  otherCents: number; // Car-category expense transactions (all vehicles share the category)
+  reimbursedCents: number; // Car-category income (reimbursements)
+  totalCents: number; // fuel + other − reimbursed
+}
+
+export interface CarStatsResponse {
+  vehicleId: number;
+  entries: FuelEntry[]; // newest first
+  points: FuelPoint[]; // oldest first (by odometer)
+  summary: FuelSummary;
+  monthlyCosts: MonthlyCarCost[]; // newest first
+}

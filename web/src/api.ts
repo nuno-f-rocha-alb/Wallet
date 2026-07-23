@@ -6,11 +6,14 @@ import {
 } from '@tanstack/react-query';
 import type {
   Account,
+  CarStatsResponse,
   Category,
   DashboardResponse,
+  FuelEntry,
   Transaction,
   Transfer,
   User,
+  Vehicle,
 } from '@wallet/shared';
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
@@ -115,5 +118,56 @@ export function useDeleteCategory() {
       qc.invalidateQueries({ queryKey: ['categories'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
+  });
+}
+
+// ---- car ----
+
+export const useVehicles = () =>
+  useQuery({ queryKey: ['vehicles'], queryFn: () => api<Vehicle[]>('/vehicles') });
+
+export const useCarStats = (vehicleId: number | undefined) =>
+  useQuery({
+    queryKey: ['carStats', vehicleId],
+    queryFn: () => api<CarStatsResponse>(`/vehicles/${vehicleId}/stats`),
+    enabled: !!vehicleId,
+  });
+
+function invalidateCar(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ['vehicles'] });
+  qc.invalidateQueries({ queryKey: ['carStats'] });
+}
+
+export function useSaveVehicle() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: Partial<Vehicle> & { id?: number }) =>
+      v.id ? api<Vehicle>(`/vehicles/${v.id}`, patchBody(v)) : api<Vehicle>('/vehicles', jsonBody(v)),
+    onSuccess: () => invalidateCar(qc),
+  });
+}
+
+export function useDeleteVehicle() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/vehicles/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateCar(qc),
+  });
+}
+
+export function useSaveFuel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (f: Partial<FuelEntry> & { id?: number }) =>
+      f.id ? api<FuelEntry>(`/fuel/${f.id}`, patchBody(f)) : api<FuelEntry>('/fuel', jsonBody(f)),
+    onSuccess: () => invalidateCar(qc),
+  });
+}
+
+export function useDeleteFuel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/fuel/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateCar(qc),
   });
 }

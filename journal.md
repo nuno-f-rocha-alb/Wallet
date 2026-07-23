@@ -66,3 +66,50 @@ Manage shows seeded taxonomy; Transfer hidden with <2 accounts. CodeRabbit: see
 `reviews/wallet.md`.
 
 **Next**: Phase 2 — car module (fuel log → L/100km, €/L, €/km, monthly car spend).
+
+---
+
+## §3 — Phase 2: car module
+
+**What**: Vehicles + fuel log with derived efficiency. Backend (migration v3): `vehicles`,
+`fuel_entries` (owner-scoped composite FK). Pure `computeFuelStats` (car.ts) + `getCarStats`
+endpoint. Frontend: 4th "Car" tab — vehicle chips, L/100km · €/L · €/km tiles, CSS-bar
+trends, monthly car-spend split, fuel log. `VehicleForm` + `FuelForm`. Migration v4 added a
+`system_key` on categories (CodeRabbit fix, below).
+
+**Decisions / root causes**
+- **Integers only, no floats in the DB**: litres as millilitres, odometer as km, price as
+  cents. L/100km = ml/dist/10, €/L = cents*10/ml, €/km = cents/(100·dist).
+- **L/100km = full-fill intervals; partials accumulate**: tank starts full and ends full,
+  so litres *added* over the interval = litres *consumed*. Accumulate litres+cost across
+  entries; at each full fill close the interval (distance = odo − lastFullOdo) and reset.
+  First full fill is only a baseline (no prior full tank → no point). Summary metrics use
+  only fuel consumed between full tanks, so €/L, €/km and avg L/100km are internally
+  consistent. This is the DoD unit test (incl. a partial-fill case, hand-computed = 8.0).
+- **Fuel log is not a ledger transaction**: it's the efficiency record. Monthly car spend =
+  fuel log + Car-category transaction expenses − reimbursements; log fuel in the fuel module
+  (not as a Car>Fuel transaction) to avoid double counting. ponytail: one shared Car
+  category across vehicles (personal app); per-vehicle cost attribution is a future upgrade.
+- **No chart lib** (established): trends/split are CSS bars, matching the dashboard.
+- **UI hand-built to match the existing design system** (ui.ts helpers), not regenerated via
+  Magic — 8 existing components already define the one system; consistency > regeneration.
+
+**CodeRabbit (1 major, 4 minor — all fixed)**
+- major: Car category resolved by mutable **name** → rename silently drops non-fuel
+  costs/reimbursements. Fixed with a stable `system_key='car'` (migration v4 adds the column
+  + backfills existing users by name; seed sets it). `carCategoryIds` now queries the key.
+- minor: DoD test used €1.50/L on every fill (per-fill vs aggregate €/L indistinguishable)
+  → closing fill €2.00/L, aggregate 1.875 asserted separately.
+- minor: `date` regex accepted impossible dates (`2026-02-31`) → shared `date` schema
+  hardened with a calendar-validity refine (also tightens tx/transfer); test added.
+- minor: month nav showed on the Car tab (Car ignores month) → nav limited to
+  dashboard/transactions.
+- minor: orphan "reimbursed" legend with no bar segment → removed.
+
+**Gate**: typecheck ✓ · lint ✓ · vitest 12/12 (3 auth + 6 ledger + 3 car) ✓ · build ✓.
+Live-verified: endpoint returned L/100km 8, €/L 1.5, €/km 0.12, monthly fuel €120; browser
+Car tab rendered tiles + trends + monthly split + fuel log (partial fill labelled).
+CodeRabbit re-review after fixes: **0 code findings** (all 5 resolved). Verdict PASS — see
+`reviews/wallet.md`.
+
+**Next**: Phase 3 — recurring rules & predictions.

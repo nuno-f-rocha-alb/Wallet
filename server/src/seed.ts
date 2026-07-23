@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 
 // Default category taxonomy per new user (from the friend's xlsx). Parents first,
 // then children referencing them.
-const TAXONOMY: { name: string; kind: 'expense' | 'income'; color: string; children?: { name: string; kind?: 'expense' | 'income' }[] }[] = [
+const TAXONOMY: { name: string; kind: 'expense' | 'income'; color: string; key?: string; children?: { name: string; kind?: 'expense' | 'income' }[] }[] = [
   { name: 'Housing', kind: 'expense', color: '#f59e0b' },
   {
     name: 'Food & Drinks',
@@ -14,6 +14,7 @@ const TAXONOMY: { name: string; kind: 'expense' | 'income'; color: string; child
     name: 'Car',
     kind: 'expense',
     color: '#3b82f6',
+    key: 'car',
     children: [
       { name: 'Fuel' },
       { name: 'Road tax' },
@@ -34,14 +35,14 @@ const TAXONOMY: { name: string; kind: 'expense' | 'income'; color: string; child
 
 export function seedDefaults(db: DatabaseSync, userId: number): void {
   const insert = db.prepare(
-    'INSERT INTO categories(user_id, name, parent_id, kind, color, sort) VALUES(?,?,?,?,?,?)',
+    'INSERT INTO categories(user_id, name, parent_id, kind, color, sort, system_key) VALUES(?,?,?,?,?,?,?)',
   );
   let sort = 0;
   for (const cat of TAXONOMY) {
-    const info = insert.run(userId, cat.name, null, cat.kind, cat.color, sort++);
+    const info = insert.run(userId, cat.name, null, cat.kind, cat.color, sort++, cat.key ?? null);
     const parentId = Number(info.lastInsertRowid);
     for (const child of cat.children ?? []) {
-      insert.run(userId, child.name, parentId, child.kind ?? cat.kind, cat.color, sort++);
+      insert.run(userId, child.name, parentId, child.kind ?? cat.kind, cat.color, sort++, null);
     }
   }
 }

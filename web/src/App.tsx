@@ -1,22 +1,27 @@
 import { useState } from 'react';
-import type { Account, Category, Transaction } from '@wallet/shared';
+import type { Account, Category, FuelEntry, Transaction, Vehicle } from '@wallet/shared';
 import { useAccounts, useCategories, useMe } from './api';
 import { monthLabel, shiftMonth, thisMonth } from './format';
 import { Dashboard } from './components/Dashboard';
 import { Transactions } from './components/Transactions';
 import { Manage } from './components/Manage';
+import { Car } from './components/Car';
 import { Modal } from './components/Modal';
 import { TransactionForm } from './components/TransactionForm';
 import { AccountForm } from './components/AccountForm';
 import { TransferForm } from './components/TransferForm';
 import { CategoryForm } from './components/CategoryForm';
+import { VehicleForm } from './components/VehicleForm';
+import { FuelForm } from './components/FuelForm';
 
-type Tab = 'dashboard' | 'transactions' | 'manage';
+type Tab = 'dashboard' | 'transactions' | 'car' | 'manage';
 type ModalState =
   | { kind: 'tx'; tx?: Transaction }
   | { kind: 'account'; account?: Account }
   | { kind: 'transfer' }
   | { kind: 'category'; category?: Category }
+  | { kind: 'vehicle'; vehicle?: Vehicle }
+  | { kind: 'fuel'; vehicleId: number; entry?: FuelEntry }
   | null;
 
 export function App() {
@@ -42,7 +47,8 @@ export function App() {
     );
   }
 
-  const showMonthNav = tab !== 'manage';
+  // Only the month-scoped tabs; Car and Manage ignore the month.
+  const showMonthNav = tab === 'dashboard' || tab === 'transactions';
 
   return (
     <div className="min-h-dvh bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -60,6 +66,14 @@ export function App() {
       <main className="pb-24">
         {tab === 'dashboard' && <Dashboard month={month} onEditTx={(tx) => setModal({ kind: 'tx', tx })} />}
         {tab === 'transactions' && <Transactions month={month} onEditTx={(tx) => setModal({ kind: 'tx', tx })} />}
+        {tab === 'car' && (
+          <Car
+            onAddVehicle={() => setModal({ kind: 'vehicle' })}
+            onEditVehicle={(vehicle) => setModal({ kind: 'vehicle', vehicle })}
+            onAddFuel={(vehicleId) => setModal({ kind: 'fuel', vehicleId })}
+            onEditFuel={(vehicleId, entry) => setModal({ kind: 'fuel', vehicleId, entry })}
+          />
+        )}
         {tab === 'manage' && (
           <Manage
             onAddAccount={() => setModal({ kind: 'account' })}
@@ -82,8 +96,8 @@ export function App() {
       </button>
 
       {/* bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900">
-        {(['dashboard', 'transactions', 'manage'] as Tab[]).map((t) => (
+      <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900">
+        {(['dashboard', 'transactions', 'car', 'manage'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -112,6 +126,16 @@ export function App() {
       {modal?.kind === 'category' && (
         <Modal title={modal.category ? 'Edit category' : 'Add category'} onClose={close}>
           <CategoryForm category={modal.category} categories={categories.data ?? []} onClose={close} />
+        </Modal>
+      )}
+      {modal?.kind === 'vehicle' && (
+        <Modal title={modal.vehicle ? 'Edit vehicle' : 'Add vehicle'} onClose={close}>
+          <VehicleForm vehicle={modal.vehicle} onClose={close} />
+        </Modal>
+      )}
+      {modal?.kind === 'fuel' && (
+        <Modal title={modal.entry ? 'Edit fuel entry' : 'Add fuel'} onClose={close}>
+          <FuelForm vehicleId={modal.vehicleId} entry={modal.entry} onClose={close} />
         </Modal>
       )}
     </div>

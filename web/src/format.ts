@@ -6,6 +6,15 @@ export const money = (cents: number): string => eur.format(cents / 100);
 /** Euro string/number -> integer cents (rounded). */
 export const toCents = (euros: number): number => Math.round(euros * 100);
 
+/** Litres number -> integer millilitres (rounded). */
+export const toMl = (liters: number): number => Math.round(liters * 1000);
+
+/** Integer millilitres -> "42.30 L". */
+export const liters = (ml: number): string => `${(ml / 1000).toFixed(2)} L`;
+
+/** Number -> fixed-decimals string, or "—" when null. */
+export const num = (v: number | null, digits = 2): string => (v == null ? '—' : v.toFixed(digits));
+
 export const todayISO = (): string => new Date().toISOString().slice(0, 10);
 export const thisMonth = (): string => new Date().toISOString().slice(0, 7);
 

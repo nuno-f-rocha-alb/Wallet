@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { getDb } from './db.js';
 import { HttpError } from './errors.js';
 import * as svc from './service.js';
+import * as car from './car.js';
 import * as S from './schemas.js';
 
 function uid(req: FastifyRequest): number {
@@ -83,5 +84,37 @@ export function registerRoutes(app: FastifyInstance): void {
   app.get('/api/dashboard', async (req) => {
     const { month } = S.dashboardQuery.parse(req.query);
     return svc.getDashboard(getDb(), uid(req), month);
+  });
+
+  // ---- vehicles ----
+  app.get('/api/vehicles', async (req) => car.listVehicles(getDb(), uid(req)));
+  app.post('/api/vehicles', async (req, reply) => {
+    const v = car.createVehicle(getDb(), uid(req), S.vehicleCreate.parse(req.body));
+    return reply.code(201).send(v);
+  });
+  app.patch('/api/vehicles/:id', async (req) =>
+    car.updateVehicle(getDb(), uid(req), paramId(req), S.vehicleUpdate.parse(req.body)),
+  );
+  app.delete('/api/vehicles/:id', async (req, reply) => {
+    car.deleteVehicle(getDb(), uid(req), paramId(req));
+    return reply.code(204).send();
+  });
+  app.get('/api/vehicles/:id/stats', async (req) => car.getCarStats(getDb(), uid(req), paramId(req)));
+
+  // ---- fuel entries ----
+  app.get('/api/fuel', async (req) => {
+    const { vehicleId } = S.fuelListQuery.parse(req.query);
+    return car.listFuelEntries(getDb(), uid(req), vehicleId);
+  });
+  app.post('/api/fuel', async (req, reply) => {
+    const f = car.createFuelEntry(getDb(), uid(req), S.fuelCreate.parse(req.body));
+    return reply.code(201).send(f);
+  });
+  app.patch('/api/fuel/:id', async (req) =>
+    car.updateFuelEntry(getDb(), uid(req), paramId(req), S.fuelUpdate.parse(req.body)),
+  );
+  app.delete('/api/fuel/:id', async (req, reply) => {
+    car.deleteFuelEntry(getDb(), uid(req), paramId(req));
+    return reply.code(204).send();
   });
 }

@@ -105,6 +105,51 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       CREATE INDEX idx_tx_user_ext ON transactions(user_id, external_ref);
     `,
   },
+  {
+    // Phase 2 — car module. Liters stored as integer millilitres, odometer as
+    // integer km, price as integer cents (no floats in the DB). Owner-scoped
+    // composite FK so a fuel entry can only reference the same user's vehicle.
+    version: 3,
+    sql: `
+      CREATE TABLE vehicles (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL REFERENCES users(id),
+        name       TEXT NOT NULL,
+        make       TEXT,
+        plate      TEXT,
+        archived   INTEGER NOT NULL DEFAULT 0,
+        sort       INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, id)
+      );
+      CREATE INDEX idx_vehicles_user ON vehicles(user_id);
+
+      CREATE TABLE fuel_entries (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id           INTEGER NOT NULL REFERENCES users(id),
+        vehicle_id        INTEGER NOT NULL,
+        date              TEXT NOT NULL,
+        odometer_km       INTEGER NOT NULL CHECK(odometer_km > 0),
+        liters_ml         INTEGER NOT NULL CHECK(liters_ml > 0),
+        total_price_cents INTEGER NOT NULL CHECK(total_price_cents >= 0),
+        is_full           INTEGER NOT NULL DEFAULT 1,
+        note              TEXT,
+        created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, id),
+        FOREIGN KEY(user_id, vehicle_id) REFERENCES vehicles(user_id, id)
+      );
+      CREATE INDEX idx_fuel_user_vehicle ON fuel_entries(user_id, vehicle_id, odometer_km);
+    `,
+  },
+  {
+    // Stable identity for the seeded "Car" category so renaming it doesn't silently
+    // break monthly car-spend aggregation. Backfills existing users by current name.
+    version: 4,
+    sql: `
+      ALTER TABLE categories ADD COLUMN system_key TEXT;
+      UPDATE categories SET system_key = 'car' WHERE parent_id IS NULL AND name = 'Car';
+    `,
+  },
 ];
 
 let _db: DatabaseSync | undefined;
