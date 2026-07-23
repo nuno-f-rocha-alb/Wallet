@@ -159,3 +159,61 @@ forecast ×2, detector, idempotent auto-post+isolation+archive, upcoming/forecas
 their bank) → lead with the `pdf.js` text-extraction path; CSV mapping stays in the spec but
 is secondary. Ask the user for a representative PDF statement at Phase 4 start; derive the
 format, commit a synthetic/redacted fixture (never the real statement).
+
+---
+
+## §5 — Phase 4: bank statement import (PDF)
+
+**What**: Import a bank statement PDF → dedup → categorize → confirm → commit, reversibly.
+Backend (migration v6): `bank_imports` batch + `transactions.import_id` (ON DELETE CASCADE).
+Bank-agnostic core in `bank.ts` (pure + tested). Pluggable parsers in `shared/parsers.ts`
+(CGD first). In-browser `pdf.js` extraction (`web/src/lib/extractPdf.ts`). Import UI as a
+Manage modal (`ImportFlow.tsx`) + a past-imports list with Undo.
+
+**Decisions / root causes**
+- **PDF parsed on-device**: `pdf.js` (`pdfjs-dist`) runs in a web worker in the browser; the
+  statement text never leaves the device until the user confirms which rows to commit.
+- **Parser = pluggable per bank** (user has CGD now, may add others): `BANKS` registry, each
+  `{id,name,detect,parse}`. `detectBank(text)` picks by signature (CGD = `CGDIPTPL`). Adding a
+  bank = a new entry, not a rewrite. Generic CSV column-mapping remains the universal fallback
+  (spec) — not built yet (user has no CSV).
+- **CGD row heuristic**: line with a `YYYY-MM-DD` date + ≥2 PT-money tokens (`1.637,40`); the
+  last two are amount + running balance; description is the middle; a trailing ≥6-digit run is
+  the bank's transaction ref → pulled into `external_ref` (exact re-import dedup) and stripped
+  so the merchant text groups across visits. Validated on the **real 123-row June statement**:
+  opening 1648.85 + Σ amounts 418.12 = 2066.97 = the statement's own account total (exact
+  reconcile). ponytail known-limit: the "Saldo anterior" opening-balance regex didn't catch
+  the real layout (display-only; import doesn't depend on it) — tighten later.
+- **Dedup two-tier** (`bank.ts`): exact by `external_ref` (covers overlapping re-imports) +
+  fuzzy by same amount + normalized description within ±1 day (covers a row the user already
+  keyed by hand). Rows without a bank ref get a synthesized stable ref
+  `bank:<date>:<amount>:<descKey>:<n>` so genuine same-day duplicates survive (n=0,1,…) yet a
+  re-import matches exactly. Re-checked at commit so a double-submit can't double-insert.
+- **Merchant memory = history, no new table**: `suggestCategory` returns the category most
+  used for that normalized merchant in existing transactions. Reapplies a prior mapping.
+- **Reversible batch**: committed rows tagged `import_id`; deleting the `bank_imports` row
+  cascades them away (Undo in Manage).
+- **Which account**: user picks the target account before importing; the parsed `accountRef`
+  (NIB tail) is shown to confirm the statement matches. ponytail: no IBAN-per-account link yet.
+
+**CodeRabbit** (iteration 1 → all fixed): 2 major, 2 minor.
+- major (security): `commitImport` inserted a user-supplied `categoryId` without an ownership
+  check → a cross-user/unknown category id would 500 or mis-tag. Added `assertCategoriesOwned`
+  (clean 400); regression test commits with bob's category as alice → 400.
+- major (perf): dedup was O(n·m) with a normalize per compare, up to 5000² inside the sync
+  commit transaction → replaced the growing `.some()` scan with a `DedupIndex` (ref Set +
+  amount|desc buckets), incremental as rows insert. `isDuplicate` now delegates to it.
+- minor: account-ref regex only matched a contiguous NIB → broadened to IBAN + spaced NIB.
+- minor: `extractPdf` never called `doc.destroy()` → wrapped in try/finally (worker/buffers
+  freed across repeated imports).
+Re-review after fixes: **0 findings**.
+
+**Gate**: typecheck ✓ · lint ✓ · vitest **29/29** (adds 6 bank: normalize, refs, dedup exact+
+fuzzy, merchant memory, import-twice→0-dupes, overlap→only-new, revert, isolation; + 3 parser:
+ptToCents, CGD fixture parse, unknown-bank→null) ✓ · build ✓ (pdf.js worker bundled).
+Parser live-validated on the real PDF (reconciles). Import UI renders (account picker + file
+input + review table). **Not yet verified**: the in-browser file-picker→extract→commit round
+trip (no `file_upload` tool on the automation surface) — extraction code is identical to the
+validated Node path; flagged for a manual eyeball.
+
+**Next**: finish Phase 4 CR + manual browser check, then Phase 5 — receipt OCR (photo-only).

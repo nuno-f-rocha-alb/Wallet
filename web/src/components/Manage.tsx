@@ -1,7 +1,7 @@
 import type { Account, Category } from '@wallet/shared';
-import { useAccounts, useCategories } from '../api';
+import { useAccounts, useCategories, useImports, useRevertImport } from '../api';
 import { money } from '../format';
-import { btnGhost, btnPrimary, card } from './ui';
+import { btnDanger, btnGhost, btnPrimary, card } from './ui';
 
 export function Manage({
   onAddAccount,
@@ -9,17 +9,22 @@ export function Manage({
   onTransfer,
   onAddCategory,
   onEditCategory,
+  onImport,
 }: {
   onAddAccount: () => void;
   onEditAccount: (a: Account) => void;
   onTransfer: () => void;
   onAddCategory: () => void;
   onEditCategory: (c: Category) => void;
+  onImport: () => void;
 }) {
   const accounts = useAccounts();
   const cats = useCategories();
+  const imports = useImports();
+  const revert = useRevertImport();
   const list = accounts.data ?? [];
   const catList = cats.data ?? [];
+  const importList = imports.data ?? [];
 
   return (
     <div className="space-y-6 p-4">
@@ -43,6 +48,28 @@ export function Manage({
                   <span>{a.name}{a.archived ? ' (archived)' : ''}</span>
                   <span className={`font-medium tabular-nums ${(a.balanceCents ?? 0) < 0 ? 'text-red-600' : ''}`}>{money(a.balanceCents ?? 0)}</span>
                 </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-500">Bank import</h3>
+          <button className={btnPrimary} onClick={onImport} disabled={list.length === 0}>Import PDF</button>
+        </div>
+        {importList.length === 0 ? (
+          <p className="text-sm text-slate-400">No imports yet. Import a statement PDF to bring in transactions.</p>
+        ) : (
+          <ul className={`${card} divide-y divide-slate-100 dark:divide-slate-700`}>
+            {importList.map((b) => (
+              <li key={b.id} className="flex items-center gap-3 p-3">
+                <div className="flex-1">
+                  <p className="truncate text-sm">{b.description || 'Import'}</p>
+                  <p className="text-xs text-slate-400">{b.rowCount} rows · {b.createdAt.slice(0, 10)}</p>
+                </div>
+                <button className={btnDanger} disabled={revert.isPending} onClick={() => revert.mutate(b.id)}>Undo</button>
               </li>
             ))}
           </ul>

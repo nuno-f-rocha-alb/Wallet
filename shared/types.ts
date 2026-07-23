@@ -187,3 +187,44 @@ export interface RuleSuggestion {
   description: string;
   count: number; // how many matching transactions were found
 }
+
+// --- Phase 4: bank import ---
+
+export type ImportSource = 'pdf' | 'csv';
+
+/** A row parsed from a statement (in-browser), before staging/dedup. */
+export interface ParsedRow {
+  date: string; // YYYY-MM-DD
+  amountCents: number; // signed
+  description: string;
+  externalRef?: string | null; // bank's own ref if the statement provides one
+}
+
+/** A staged row annotated by the server: dedup status + a category suggestion. */
+export interface StagedRow extends ParsedRow {
+  externalRef: string; // synthesized when the bank gives none (stable across re-imports)
+  status: 'new' | 'duplicate';
+  suggestedCategoryId: number | null;
+}
+
+export interface ImportPreview {
+  accountId: number;
+  rows: StagedRow[];
+  newCount: number;
+  duplicateCount: number;
+}
+
+export interface ImportBatch {
+  id: number;
+  accountId: number;
+  source: ImportSource;
+  description: string;
+  rowCount: number;
+  createdAt: string;
+}
+
+export interface CommitResult {
+  importId: number;
+  inserted: number;
+  skipped: number; // rows that turned out to be duplicates at commit time
+}

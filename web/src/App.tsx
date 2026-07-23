@@ -15,6 +15,7 @@ import { CategoryForm } from './components/CategoryForm';
 import { VehicleForm } from './components/VehicleForm';
 import { FuelForm } from './components/FuelForm';
 import { RecurringForm } from './components/RecurringForm';
+import { ImportFlow } from './components/ImportFlow';
 
 type Tab = 'dashboard' | 'transactions' | 'car' | 'plan' | 'manage';
 type ModalState =
@@ -25,6 +26,7 @@ type ModalState =
   | { kind: 'vehicle'; vehicle?: Vehicle }
   | { kind: 'fuel'; vehicleId: number; entry?: FuelEntry }
   | { kind: 'recurring'; rule?: RecurringRule; suggestion?: RuleSuggestion }
+  | { kind: 'import' }
   | null;
 
 export function App() {
@@ -99,6 +101,7 @@ export function App() {
             onTransfer={() => setModal({ kind: 'transfer' })}
             onAddCategory={() => setModal({ kind: 'category' })}
             onEditCategory={(category) => setModal({ kind: 'category', category })}
+            onImport={() => setModal({ kind: 'import' })}
           />
         )}
       </main>
@@ -165,6 +168,11 @@ export function App() {
             categories={categories.data ?? []}
             onClose={close}
           />
+        </Modal>
+      )}
+      {modal?.kind === 'import' && (
+        <Modal title="Import statement" onClose={close}>
+          <ImportFlow accounts={accounts.data ?? []} categories={categories.data ?? []} onClose={close} />
         </Modal>
       )}
     </div>

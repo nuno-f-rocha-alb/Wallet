@@ -24,16 +24,29 @@
   Idempotent auto-post (external_ref `recur:<id>:<date>` + `last_posted_date`), fires on app
   open. Plan tab (5th): forecast bars, suggestions w/ prefill, upcoming, rules. 20/20 tests.
 
-## Next (in order)
-- **Phase 4 — bank statement import & sync**: **PDF only** — the user has no CSV export from
-  their bank, so lead with the `pdf.js` text-extraction → row-heuristics path; CSV
-  column-mapping stays in the spec but is secondary. Stage → **dedup** (date + amount +
-  normalized desc/`external_ref`, fuzzy within a day window) so re-importing overlapping
-  months inserts only missing rows. Auto-categorize via merchant memory; review-and-confirm;
-  reversible batch. DoD in `specs/wallet.md § Phase 4`. New tables → **migration v6**.
-  **At Phase 4 start**: ask the user for a representative PDF statement; derive the format,
-  commit a **synthetic/redacted** fixture (never the real statement).
-- Then Phases 5–6: Receipt OCR (photo-only, QR dropped) · Stats & portability.
+## Phase 4 — bank import (IN PROGRESS on `flow/wallet`, not yet committed)
+Built this session (journal `§5`), gate green (typecheck/lint/**29 tests**/build), **uncommitted**:
+- migration **v6**: `bank_imports` + `transactions.import_id` (ON DELETE CASCADE → reversible).
+- `server/src/bank.ts` (+ `bank.test.ts`): pure dedup (exact ref + fuzzy ±1 day), synthesized
+  refs, merchant memory; preview/commit/list/revert. All 4 DoD cases tested.
+- `shared/parsers.ts` (+ `parsers.test.ts`): pluggable bank registry, **CGD** parser.
+  Validated on the real 123-row June statement (amounts reconcile to the account total).
+- `web/src/lib/extractPdf.ts` (pdf.js in a worker), `ImportFlow.tsx`, Manage "Import PDF" +
+  Undo list. `pdfjs-dist` added to web.
+
+### To finish Phase 4
+1. **CodeRabbit** on the diff (`--uncommitted --include-untracked --base main`); fix findings.
+   (A delayed re-run was queued; the free CLI cap resets in seconds–minutes if hit.)
+2. **Manual browser smoke test** (the one un-automated step — no `file_upload` on the agent's
+   browser surface): `npm run dev:server` (with `AUTH_DEV_USER=alice`) + `npm run dev:web`,
+   open Manage → Import PDF → pick the CGD account → upload a statement → confirm the review
+   table populates → Import → check balances → Undo. Then commit + merge to `main`.
+3. Optional: fix the opening-balance regex on the real CGD layout; generic CSV path; more banks.
+- **Do not commit the real statement or its data** — only the synthetic fixture in
+  `shared/parsers.test.ts`.
+
+## Next (after Phase 4)
+- Phases 5–6: Receipt OCR (photo-only, QR dropped) · Stats & portability.
 
 ## Gate commands (must pass before a phase lands)
 ```
@@ -45,7 +58,9 @@ wsl -d Debian -e sh -lc "cd /mnt/c/Users/nunob/Repositorios/Wallet && coderabbit
 
 ## Resume line
 Open a new session in this repo, say **resume flow**; read `handoff.md` +
-`specs/wallet.md` + the `journal.md` tail, then build **Phase 4** on `flow/wallet`.
+`specs/wallet.md` + the `journal.md` tail. **Phase 4 is built but uncommitted on
+`flow/wallet`** — finish it via the "To finish Phase 4" steps above (CodeRabbit → manual
+browser smoke test → commit → merge), then move to Phase 5.
 
 ## Gotchas (this machine)
 - Node 25 local; `node:sqlite` loaded via `createRequire` so Vite/vitest don't choke.

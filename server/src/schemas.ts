@@ -113,6 +113,30 @@ export const recurringUpdate = recurringBase.partial().extend({ archived: z.bool
 export const upcomingQuery = z.object({ days: z.coerce.number().int().positive().max(400).default(60) });
 export const forecastQuery = z.object({ months: z.coerce.number().int().positive().max(24).default(6) });
 
+// --- Phase 4: bank import ---
+
+const parsedRow = z.object({
+  date,
+  amountCents: cents.refine((v) => v !== 0, 'amount cannot be zero'),
+  description: z.string().trim().max(200).default(''),
+  externalRef: z.string().trim().max(120).nullable().default(null),
+});
+
+export const importPreview = z.object({
+  accountId: z.number().int().positive(),
+  rows: z.array(parsedRow).min(1).max(5000),
+});
+
+export const importCommit = z.object({
+  accountId: z.number().int().positive(),
+  source: z.enum(['pdf', 'csv']).default('pdf'),
+  description: z.string().trim().max(200).default(''),
+  rows: z
+    .array(parsedRow.extend({ categoryId: z.number().int().positive().nullable().default(null) }))
+    .min(1)
+    .max(5000),
+});
+
 export const txListQuery = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
   accountId: z.coerce.number().int().positive().optional(),

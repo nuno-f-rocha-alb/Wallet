@@ -180,6 +180,30 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       CREATE INDEX idx_recurring_user ON recurring_rules(user_id, archived);
     `,
   },
+  {
+    // Phase 4 — bank import. A batch groups the rows committed by one import so it
+    // can be reverted in one shot (transactions.import_id ON DELETE CASCADE). Rows
+    // carry a synthesized external_ref for exact re-import dedup.
+    version: 6,
+    sql: `
+      CREATE TABLE bank_imports (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     INTEGER NOT NULL REFERENCES users(id),
+        account_id  INTEGER NOT NULL,
+        source      TEXT NOT NULL DEFAULT 'pdf' CHECK(source IN ('pdf','csv')),
+        description TEXT NOT NULL DEFAULT '',
+        row_count   INTEGER NOT NULL DEFAULT 0,
+        created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, id),
+        FOREIGN KEY(user_id, account_id) REFERENCES accounts(user_id, id)
+      );
+      CREATE INDEX idx_bank_imports_user ON bank_imports(user_id);
+
+      ALTER TABLE transactions ADD COLUMN import_id INTEGER
+        REFERENCES bank_imports(id) ON DELETE CASCADE;
+      CREATE INDEX idx_tx_import ON transactions(import_id);
+    `,
+  },
 ];
 
 let _db: DatabaseSync | undefined;

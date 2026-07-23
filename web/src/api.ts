@@ -8,10 +8,14 @@ import type {
   Account,
   CarStatsResponse,
   Category,
+  CommitResult,
   DashboardResponse,
   ForecastPoint,
   FuelEntry,
+  ImportBatch,
+  ImportPreview,
   Occurrence,
+  ParsedRow,
   RecurringRule,
   RuleSuggestion,
   Transaction,
@@ -218,6 +222,40 @@ export function useRunAutoPost() {
     onSuccess: (res) => {
       invalidatePlan(qc);
       if (res.posted > 0) invalidateLedger(qc); // posted transactions changed balances
+    },
+  });
+}
+
+// ---- bank import ----
+
+export const useImports = () =>
+  useQuery({ queryKey: ['imports'], queryFn: () => api<ImportBatch[]>('/import') });
+
+export function usePreviewImport() {
+  return useMutation({
+    mutationFn: (body: { accountId: number; rows: ParsedRow[] }) => api<ImportPreview>('/import/preview', jsonBody(body)),
+  });
+}
+
+export function useCommitImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { accountId: number; source: 'pdf' | 'csv'; description: string; rows: (ParsedRow & { categoryId: number | null })[] }) =>
+      api<CommitResult>('/import/commit', jsonBody(body)),
+    onSuccess: () => {
+      invalidateLedger(qc);
+      qc.invalidateQueries({ queryKey: ['imports'] });
+    },
+  });
+}
+
+export function useRevertImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/import/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      invalidateLedger(qc);
+      qc.invalidateQueries({ queryKey: ['imports'] });
     },
   });
 }

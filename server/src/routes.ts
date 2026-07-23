@@ -5,6 +5,7 @@ import { HttpError } from './errors.js';
 import * as svc from './service.js';
 import * as car from './car.js';
 import * as rec from './recurring.js';
+import * as bank from './bank.js';
 import * as S from './schemas.js';
 
 function uid(req: FastifyRequest): number {
@@ -143,5 +144,20 @@ export function registerRoutes(app: FastifyInstance): void {
   app.get('/api/forecast', async (req) => {
     const { months } = S.forecastQuery.parse(req.query);
     return rec.forecast(getDb(), uid(req), months);
+  });
+
+  // ---- bank import ----
+  app.post('/api/import/preview', async (req) => {
+    const { accountId, rows } = S.importPreview.parse(req.body);
+    return bank.previewImport(getDb(), uid(req), accountId, rows);
+  });
+  app.post('/api/import/commit', async (req, reply) => {
+    const body = S.importCommit.parse(req.body);
+    return reply.code(201).send(bank.commitImport(getDb(), uid(req), body));
+  });
+  app.get('/api/import', async (req) => bank.listImports(getDb(), uid(req)));
+  app.delete('/api/import/:id', async (req, reply) => {
+    bank.revertImport(getDb(), uid(req), paramId(req));
+    return reply.code(204).send();
   });
 }
