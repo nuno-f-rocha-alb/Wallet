@@ -20,6 +20,12 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
   const [type, setType] = useState<AccountType>(account?.type ?? 'bank');
   const [opening, setOpening] = useState(account ? (account.openingBalanceCents / 100).toString() : '');
   const [limit, setLimit] = useState(account?.creditLimitCents != null ? (account.creditLimitCents / 100).toString() : '');
+  const [rate, setRate] = useState(account?.interestRateBps != null ? (account.interestRateBps / 100).toString() : '');
+  const [payment, setPayment] = useState(account?.monthlyPaymentCents != null ? (account.monthlyPaymentCents / 100).toString() : '');
+  const [varFrom, setVarFrom] = useState(account?.rateVariableFrom ?? '');
+  const [varRate, setVarRate] = useState(account?.variableRateBps != null ? (account.variableRateBps / 100).toString() : '');
+
+  const isDebt = type === 'loan' || type === 'credit_card';
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +37,10 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
         type,
         openingBalanceCents: toCents(Number(opening) || 0),
         creditLimitCents: type === 'credit_card' && limit !== '' ? toCents(Number(limit)) : null,
+        interestRateBps: isDebt && rate !== '' ? Math.round(Number(rate) * 100) : null,
+        monthlyPaymentCents: isDebt && payment !== '' ? toCents(Number(payment)) : null,
+        rateVariableFrom: isDebt && varFrom !== '' && varRate !== '' ? varFrom : null,
+        variableRateBps: isDebt && varFrom !== '' && varRate !== '' ? Math.round(Number(varRate) * 100) : null,
       },
       { onSuccess: onClose },
     );
@@ -59,6 +69,34 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
           <label className={label} htmlFor="limit">Credit limit (€)</label>
           <input id="limit" className={input} type="number" inputMode="decimal" step="0.01" min="0" value={limit} onChange={(e) => setLimit(e.target.value)} />
         </div>
+      )}
+      {isDebt && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={label} htmlFor="rate">Interest rate (% / yr)</label>
+            <input id="rate" className={input} type="number" inputMode="decimal" step="0.01" min="0" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="e.g. 3.5" />
+          </div>
+          <div>
+            <label className={label} htmlFor="payment">Monthly payment (€)</label>
+            <input id="payment" className={input} type="number" inputMode="decimal" step="0.01" min="0" value={payment} onChange={(e) => setPayment(e.target.value)} placeholder="e.g. 850" />
+          </div>
+        </div>
+      )}
+      {isDebt && (
+        <details className="rounded-lg border border-slate-200 p-2 dark:border-slate-700">
+          <summary className="cursor-pointer text-sm text-slate-500">Rate changes to variable later (optional)</summary>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div>
+              <label className={label} htmlFor="varFrom">Variable from (month)</label>
+              <input id="varFrom" className={input} type="month" value={varFrom} onChange={(e) => setVarFrom(e.target.value)} />
+            </div>
+            <div>
+              <label className={label} htmlFor="varRate">Variable rate (% / yr)</label>
+              <input id="varRate" className={input} type="number" inputMode="decimal" step="0.01" min="0" value={varRate} onChange={(e) => setVarRate(e.target.value)} placeholder="Euribor + spread" />
+            </div>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-400">The rate above applies until this month; from then the projection uses the variable rate. Update it on each Euribor reset.</p>
+        </details>
       )}
 
       {save.error && <p className="text-sm text-red-600">{save.error.message}</p>}

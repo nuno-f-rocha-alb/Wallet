@@ -11,6 +11,7 @@ import type {
   Category,
   CommitResult,
   DashboardResponse,
+  DebtSummary,
   ForecastPoint,
   FuelEntry,
   ImportBatch,
@@ -66,6 +67,8 @@ function invalidateLedger(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: ['dashboard'] });
   qc.invalidateQueries({ queryKey: ['accounts'] });
   qc.invalidateQueries({ queryKey: ['transactions'] });
+  qc.invalidateQueries({ queryKey: ['debt'] }); // balances/terms drive the payoff projection
+  qc.invalidateQueries({ queryKey: ['stats'] });
 }
 
 export function useSaveTransaction() {
@@ -288,6 +291,8 @@ export function useCreateReceipt() {
 
 export const useStats = (months = 12) =>
   useQuery({ queryKey: ['stats', months], queryFn: () => api<StatsResponse>(`/stats?months=${months}`) });
+
+export const useDebts = () => useQuery({ queryKey: ['debt'], queryFn: () => api<DebtSummary>('/debt') });
 
 /** Fetch an export and trigger a browser download (blob, not JSON-parsed). */
 export async function downloadExport(kind: 'json' | 'csv'): Promise<void> {

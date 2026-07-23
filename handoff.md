@@ -66,10 +66,20 @@ Phase 4 passed its manual smoke test and merged to `main` (§4/§5 done). Option
 opening-balance regex on the real CGD layout; generic CSV path; more banks. **Do not commit the
 real statement or its data** — only the synthetic fixture in `shared/parsers.test.ts`.
 
+## Debt tracker (additive, journal `§8`) — built on request after Phase 6
+Loans are accounts (`loan`/`credit_card`) with terms: migration **v8** (`interest_rate_bps`,
+`monthly_payment_cents`) + **v9** (`rate_variable_from`, `variable_rate_bps` — one fixed→variable
+switch, for PT mortgages that go Euribor-linked). `shared/debt.ts` `amortize` (pure, tested)
+simulates month-by-month honoring the switch; `GET /api/debt`; Plan tab **Debts** section;
+AccountForm gains rate/payment + a collapsible variable-rate section. **CodeRabbit 0 findings**
+after 4 iterations. Projection **assumes the payment stays fixed** (real PT lenders hold the term
+and raise the prestação at each reset) — labelled in the UI; payment-recalc model deferred.
+
 ## Next (after Phase 6)
-All 7 spec phases (0–6) built. Remaining, all **deferred** (build only if asked):
-- **Investments** (buys/sells, realized P/L, DCA) and **debt/payoff tracker** — Phase 6 narrative,
-  cut from the objective gate; each is a new-table subsystem.
+All 7 spec phases (0–6) built, plus the debt tracker. Remaining, all **deferred**:
+- **Investments** (buys/sells, realized P/L, DCA) — Phase 6 narrative, cut from the objective
+  gate; a new-table subsystem.
+- Debt: **payment-recalculation** model at each variable-rate reset (holds term, adjusts payment).
 - Spec's Deferred list: household sharing, offline writes, cloud OCR, multi-currency FX.
 - Odds & ends: self-host Tesseract assets (+CSP); receipt thumbnail on the tx row; generic CSV
   bank import; opening-balance regex on the real CGD layout.
@@ -84,10 +94,9 @@ wsl -d Debian -e sh -lc "cd /mnt/c/Users/nunob/Repositorios/Wallet && coderabbit
 
 ## Resume line
 Open a new session in this repo, say **resume flow**; read `handoff.md` +
-`specs/wallet.md` + the `journal.md` tail. **Phase 6 (stats & portability) is committed on
-`flow/wallet`, NOT yet on `main`, CodeRabbit re-run pending.** Confirm CodeRabbit is clean, merge
-to `main` (`git switch main && git merge --ff-only flow/wallet`). All 7 phases then built; only the
-deferred items (investments, debt tracker, etc.) remain.
+`specs/wallet.md` + the `journal.md` tail. **All 7 phases (0–6) + the debt tracker are built,
+CodeRabbit-clean and merged to `main`.** Only deferred work remains (investments; debt
+payment-recalc model; the spec's Deferred list).
 
 ## Gotchas (this machine)
 - Node 25 local; `node:sqlite` loaded via `createRequire` so Vite/vitest don't choke.

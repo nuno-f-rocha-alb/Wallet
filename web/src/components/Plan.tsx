@@ -1,7 +1,9 @@
 import type { RecurringRule, RuleSuggestion } from '@wallet/shared';
-import { useForecast, useRecurring, useSuggestions, useUpcoming } from '../api';
+import { useDebts, useForecast, useRecurring, useSuggestions, useUpcoming } from '../api';
 import { dayLabel, money, monthLabel } from '../format';
 import { btnGhost, btnPrimary, card } from './ui';
+
+const monthsLabel = (m: number) => (m >= 12 ? `${Math.floor(m / 12)}y ${m % 12}m` : `${m}m`);
 
 export function Plan({
   onAddRule,
@@ -16,7 +18,9 @@ export function Plan({
   const upcoming = useUpcoming(60);
   const rules = useRecurring();
   const suggestions = useSuggestions();
+  const debts = useDebts();
 
+  const debt = debts.data;
   const fc = forecast.data ?? [];
   const maxAbs = Math.max(1, ...fc.map((p) => Math.abs(p.balanceCents)));
   const rec = rules.data ?? [];
@@ -25,6 +29,51 @@ export function Plan({
 
   return (
     <div className="space-y-6 p-4">
+      {/* debts */}
+      {debt && debt.lines.length > 0 && (
+        <section>
+          <div className="mb-2 flex items-baseline justify-between">
+            <h3 className="text-sm font-semibold text-slate-500">Debts</h3>
+            <span className="text-xs text-slate-400">
+              {money(-debt.totalOwedCents)} owed · {money(-debt.totalMonthlyCents)}/mo
+            </span>
+          </div>
+          <ul className={`${card} divide-y divide-slate-100 dark:divide-slate-700`}>
+            {debt.lines.map((d) => (
+              <li key={d.accountId} className="p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{d.name}</span>
+                  <span className="text-sm font-medium tabular-nums text-red-600">{money(-d.outstandingCents)}</span>
+                </div>
+                {d.interestRateBps != null && d.monthlyPaymentCents != null ? (
+                  d.payoffMonths == null ? (
+                    <p className="mt-1 text-xs text-amber-600">
+                      {!d.coversInterest
+                        ? 'Payment doesn’t cover the interest — balance won’t reduce.'
+                        : 'At this payment, payoff is more than 100 years out.'}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-400">
+                      {(d.interestRateBps / 100).toFixed(2)}%
+                      {d.rateVariableFrom && d.variableRateBps != null
+                        ? ` → ${(d.variableRateBps / 100).toFixed(2)}% from ${monthLabel(d.rateVariableFrom)}`
+                        : ''}
+                      {' · '}{money(d.monthlyPaymentCents)}/mo · paid off {d.payoffDate ? monthLabel(d.payoffDate) : '—'}
+                      {` (${monthsLabel(d.payoffMonths)})`} · {money(-(d.totalInterestCents ?? 0))} interest
+                      {d.rateVariableFrom && d.variableRateBps != null && (
+                        <span className="block text-[11px] text-slate-500">Assumes the payment stays fixed; your bank may raise it at each rate reset instead.</span>
+                      )}
+                    </p>
+                  )
+                ) : (
+                  <p className="mt-1 text-xs text-slate-400">Add an interest rate &amp; monthly payment (edit the account) to project payoff.</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* forecast */}
       {fc.length > 0 && (
         <section className={`${card} p-4`}>

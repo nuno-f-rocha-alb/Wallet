@@ -310,3 +310,44 @@ two receipts), `/api/export` (JSON w/ base64 receipts + download header), `/api/
 
 **Next**: Phase 6 is the last planned phase. Open items = investments + debt tracker (deferred),
 plus the spec's other Deferred list (household sharing, offline writes, cloud OCR, FX).
+
+---
+
+## §8 — Debt tracker (additive, post-Phase 6)
+
+**Why**: user has a home mortgage + car credit; the debt/payoff tracker was the main item
+deferred out of Phase 6. Built on request.
+
+**Design**
+- A loan **is** an account (`loan`/`credit_card`) — no new entity. Migration **v8** adds
+  `interest_rate_bps` + `monthly_payment_cents`; **v9** adds `rate_variable_from` +
+  `variable_rate_bps` for one fixed→variable switch (PT mortgages: fixed period, then
+  Euribor-linked). Outstanding is the already-derived balance (owed = negative balance).
+- **`shared/debt.ts`** (pure, tested): `amortize` simulates month-by-month in integer cents,
+  honoring a rate switch via `rateAt(monthIndex)`. Deliberately **simulates rather than
+  pre-judges** — a loan can be underwater at the fixed rate yet clear once a lower variable rate
+  starts. Outcome decides: cleared → months + total interest; not cleared in the 1200-month
+  (100-year) horizon → `payoffMonths: null`, with `coversInterest = bal < start` separating
+  "shrinking, just slow" from "growing, unpayable". `rateChange` without `startMonth` throws.
+- **`server/src/debt.ts`**: `getDebts` → per-loan projection + totals. Route `GET /api/debt`.
+- **Web**: AccountForm gains rate/payment (+ a collapsible variable-rate section); Plan gains a
+  **Debts** section (owed, rate → variable rate from month, payment, payoff date, total interest)
+  with an explicit note that the projection **assumes the payment stays fixed** — real PT lenders
+  hold the term and raise the payment at each reset instead.
+
+**CodeRabbit** (4 iterations → clean): 1 major — the 1200-month guard reported `payoffMonths:
+1200` while a balance remained (false "paid off"); fixed to report beyond-horizon. 1 major — the
+early "payment ≤ interest ⇒ unpayable" pre-check ignored a configured rate switch; removed in
+favour of simulating. 1 minor — variable-rate input allowed 3 decimals but stores basis points
+(`step="0.01"`). Plus one found in self-audit: a **half-set** rate pair (month without rate, or
+rate without month) was silently ignored, quietly leaving the loan on its fixed rate → now
+rejected 400 on create and on the *merged* result of a PATCH. Final re-review: **0 findings**.
+
+**Gate**: typecheck ✓ · lint ✓ · vitest **52/52** (9 debt: 0%-interest, hand-computed interest,
+payment-below-interest, nothing-owed, rate switch, underwater-then-payable, missing-startMonth
+throw, beyond-horizon, monthPlus; + 1 ledger: rate-pair validation) ✓ · build ✓ · `docker compose
+build` ✓ · live-verified against the user's real loans — car credit reconciles to the lender's own
+"Montante Total Imputado" within €0.12 (capital 0 000,00 + interest 0 000,00 + 4% IS on interest).
+
+**Deferred**: payment-recalculation model (bank recalcs the prestação at each reset to hold the
+term) — current model holds the payment and extends the term, labelled in the UI.

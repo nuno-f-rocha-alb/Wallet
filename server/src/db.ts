@@ -230,6 +230,26 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       CREATE INDEX idx_receipts_user ON receipts(user_id);
     `,
   },
+  {
+    // Phase 6 (additive) — debt tracking. Loan terms live on the account (a loan/credit_card
+    // IS an account); the outstanding balance is already derived. Rate in basis points, payment
+    // in cents — both integers, both nullable (only meaningful for loan/credit_card).
+    version: 8,
+    sql: `
+      ALTER TABLE accounts ADD COLUMN interest_rate_bps INTEGER;
+      ALTER TABLE accounts ADD COLUMN monthly_payment_cents INTEGER;
+    `,
+  },
+  {
+    // Debt: one fixed→variable rate switch. `interest_rate_bps` is the current (fixed) rate;
+    // from `rate_variable_from` (YYYY-MM) the projection uses `variable_rate_bps` (e.g. a
+    // Euribor-6M-linked rate the user re-enters on each reset).
+    version: 9,
+    sql: `
+      ALTER TABLE accounts ADD COLUMN rate_variable_from TEXT;
+      ALTER TABLE accounts ADD COLUMN variable_rate_bps INTEGER;
+    `,
+  },
 ];
 
 let _db: DatabaseSync | undefined;

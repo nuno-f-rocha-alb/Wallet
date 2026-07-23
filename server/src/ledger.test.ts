@@ -123,3 +123,25 @@ test('validation and guards', async () => {
   const selfTransfer = await req('POST', '/api/transfers', alice, { date: '2026-07-01', fromAccountId: withTx.id, toAccountId: withTx.id, amountCents: 100 });
   expect(selfTransfer.statusCode).toBe(400);
 });
+
+test('a loan rate switch must set both the month and the rate, or neither', async () => {
+  const half = await req('POST', '/api/accounts', alice, { name: 'L1', type: 'loan', rateVariableFrom: '2027-06' });
+  expect(half.statusCode).toBe(400); // month without a rate
+
+  const otherHalf = await req('POST', '/api/accounts', alice, { name: 'L2', type: 'loan', variableRateBps: 295 });
+  expect(otherHalf.statusCode).toBe(400); // rate without a month
+
+  const ok = await req('POST', '/api/accounts', alice, {
+    name: 'Mortgage', type: 'loan', openingBalanceCents: -100000,
+    interestRateBps: 270, monthlyPaymentCents: 50000,
+    rateVariableFrom: '2027-06', variableRateBps: 295,
+  });
+  expect(ok.statusCode).toBe(201);
+
+  // PATCH is partial, so the pair is checked against the merged result.
+  const loan = ok.json() as Account;
+  const breakPair = await req('PATCH', `/api/accounts/${loan.id}`, alice, { variableRateBps: null });
+  expect(breakPair.statusCode).toBe(400); // would leave the month set with no rate
+  const clearBoth = await req('PATCH', `/api/accounts/${loan.id}`, alice, { rateVariableFrom: null, variableRateBps: null });
+  expect(clearBoth.statusCode).toBe(200);
+});

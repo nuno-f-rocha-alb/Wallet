@@ -25,6 +25,10 @@ function toAccount(r: Row): Account {
     creditLimitCents: (r.credit_limit_cents as number | null) ?? null,
     archived: !!r.archived,
     sort: r.sort as number,
+    interestRateBps: (r.interest_rate_bps as number | null) ?? null,
+    monthlyPaymentCents: (r.monthly_payment_cents as number | null) ?? null,
+    rateVariableFrom: (r.rate_variable_from as string | null) ?? null,
+    variableRateBps: (r.variable_rate_bps as number | null) ?? null,
     ...(r.balance_cents !== undefined ? { balanceCents: r.balance_cents as number } : {}),
   };
 }
@@ -105,10 +109,22 @@ export function listAccounts(db: DatabaseSync, userId: number): Account[] {
 export function createAccount(db: DatabaseSync, userId: number, input: Omit<Account, 'id' | 'archived' | 'balanceCents'>): Account {
   const info = db
     .prepare(
-      `INSERT INTO accounts(user_id,name,type,currency,opening_balance_cents,credit_limit_cents,sort)
-       VALUES(?,?,?,?,?,?,?)`,
+      `INSERT INTO accounts(user_id,name,type,currency,opening_balance_cents,credit_limit_cents,sort,interest_rate_bps,monthly_payment_cents,rate_variable_from,variable_rate_bps)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
     )
-    .run(userId, input.name, input.type, input.currency, input.openingBalanceCents, input.creditLimitCents, input.sort);
+    .run(
+      userId,
+      input.name,
+      input.type,
+      input.currency,
+      input.openingBalanceCents,
+      input.creditLimitCents,
+      input.sort,
+      input.interestRateBps,
+      input.monthlyPaymentCents,
+      input.rateVariableFrom,
+      input.variableRateBps,
+    );
   return getAccount(db, userId, Number(info.lastInsertRowid));
 }
 
@@ -133,9 +149,23 @@ const ACCOUNT_COLS = {
   creditLimitCents: 'credit_limit_cents',
   archived: 'archived',
   sort: 'sort',
+  interestRateBps: 'interest_rate_bps',
+  monthlyPaymentCents: 'monthly_payment_cents',
+  rateVariableFrom: 'rate_variable_from',
+  variableRateBps: 'variable_rate_bps',
 };
 
 export function updateAccount(db: DatabaseSync, userId: number, id: number, patch: Record<string, unknown>): Account {
+  // The variable-rate pair must stay both-or-neither once the patch is applied, otherwise the
+  // payoff projection would silently ignore a half-configured switch.
+  const current = getAccount(db, userId, id);
+  const merged = {
+    rateVariableFrom: (patch.rateVariableFrom !== undefined ? patch.rateVariableFrom : current.rateVariableFrom) as string | null,
+    variableRateBps: (patch.variableRateBps !== undefined ? patch.variableRateBps : current.variableRateBps) as number | null,
+  };
+  if ((merged.rateVariableFrom == null) !== (merged.variableRateBps == null))
+    throw new HttpError(400, 'set both the variable-from month and the variable rate, or neither');
+
   const changed = applyUpdate(db, 'accounts', ACCOUNT_COLS, patch, id, userId);
   if (changed === 0 && !accountExists(db, userId, id)) throw new HttpError(404, 'account not found');
   return getAccount(db, userId, id);

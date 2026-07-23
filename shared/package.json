@@ -15,6 +15,10 @@
     "./receipt": {
       "types": "./receipt.ts",
       "import": "./receipt.ts"
+    },
+    "./debt": {
+      "types": "./debt.ts",
+      "import": "./debt.ts"
     }
   }
 }

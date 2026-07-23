@@ -10,6 +10,7 @@ import * as bank from './bank.js';
 import * as receipts from './receipts.js';
 import * as stats from './stats.js';
 import * as backup from './backup.js';
+import * as debt from './debt.js';
 import * as S from './schemas.js';
 
 function uid(req: FastifyRequest): number {
@@ -183,6 +184,7 @@ export function registerRoutes(app: FastifyInstance): void {
     const thisMonth = new Date().toISOString().slice(0, 7);
     return stats.getStats(getDb(), uid(req), thisMonth, req.user!.fyStartMonth, months);
   });
+  app.get('/api/debt', async (req) => debt.getDebts(getDb(), uid(req)));
   app.get('/api/export', async (req, reply) => {
     reply.header('content-disposition', 'attachment; filename="wallet-backup.json"');
     return backup.exportBackup(getDb(), uid(req));

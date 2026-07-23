@@ -28,6 +28,12 @@ export interface Account {
   creditLimitCents: number | null;
   archived: boolean;
   sort: number;
+  /** Loan/credit-card terms for debt tracking (null otherwise). Rate in basis points. */
+  interestRateBps: number | null;
+  monthlyPaymentCents: number | null;
+  /** Optional one fixed→variable rate switch: from this month, use variableRateBps. */
+  rateVariableFrom: string | null; // YYYY-MM
+  variableRateBps: number | null;
   /** Computed (opening + Σ transactions); present in list/dashboard responses. */
   balanceCents?: number;
 }
@@ -260,4 +266,26 @@ export interface BackupData {
   version: 1;
   exportedAt: string;
   tables: Record<string, Record<string, unknown>[]>;
+}
+
+/** One tracked debt (loan/credit card) with its amortization projection. */
+export interface DebtLine {
+  accountId: number;
+  name: string;
+  type: 'loan' | 'credit_card';
+  outstandingCents: number; // amount owed (positive)
+  interestRateBps: number | null;
+  monthlyPaymentCents: number | null;
+  rateVariableFrom: string | null; // YYYY-MM the rate switches to variable
+  variableRateBps: number | null; // rate from that month
+  coversInterest: boolean; // false when the payment can't cover the interest
+  payoffMonths: number | null; // months to clear, when terms are set and finite
+  payoffDate: string | null; // YYYY-MM
+  totalInterestCents: number | null; // interest over the remaining life
+}
+
+export interface DebtSummary {
+  lines: DebtLine[];
+  totalOwedCents: number;
+  totalMonthlyCents: number; // sum of set monthly payments
 }

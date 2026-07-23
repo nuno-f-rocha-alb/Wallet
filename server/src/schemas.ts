@@ -10,15 +10,32 @@ const date = z
     return !Number.isNaN(d.valueOf()) && d.toISOString().slice(0, 10) === v;
   }, 'invalid calendar date');
 
-export const accountCreate = z.object({
+const accountBase = z.object({
   name: z.string().trim().min(1).max(100),
   type: z.enum(['cash', 'bank', 'credit_card', 'loan']),
   currency: z.string().trim().length(3).toUpperCase().default('EUR'),
   openingBalanceCents: cents.default(0),
   creditLimitCents: cents.nonnegative().nullable().default(null),
   sort: z.number().int().default(0),
+  interestRateBps: cents.nonnegative().max(1_000_000).nullable().default(null), // basis points
+  monthlyPaymentCents: cents.nonnegative().nullable().default(null),
+  rateVariableFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'expected YYYY-MM')
+    .nullable()
+    .default(null),
+  variableRateBps: cents.nonnegative().max(1_000_000).nullable().default(null),
 });
-export const accountUpdate = accountCreate.partial();
+
+// A rate switch needs BOTH the month and the rate — half of it would be silently ignored by
+// the projection, quietly leaving the loan on its fixed rate. Reject it instead.
+export const bothOrNeitherVariable = (v: { rateVariableFrom?: string | null; variableRateBps?: number | null }): boolean =>
+  (v.rateVariableFrom == null) === (v.variableRateBps == null);
+const variableRateMsg = { message: 'set both the variable-from month and the variable rate, or neither', path: ['variableRateBps'] };
+
+export const accountCreate = accountBase.refine(bothOrNeitherVariable, variableRateMsg);
+// PATCH is partial, so the pair is validated against the merged result in updateAccount.
+export const accountUpdate = accountBase.partial();
 
 export const categoryCreate = z.object({
   name: z.string().trim().min(1).max(100),
