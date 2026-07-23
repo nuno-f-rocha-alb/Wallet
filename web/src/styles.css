@@ -1,7 +1,22 @@
 @import "tailwindcss";
 
+/* Force a single, unambiguous color-scheme per theme so native controls (the <select>
+   option list, date picker, scrollbars) are drawn dark in dark mode — the `light dark`
+   pair lets Chrome fall back to a light OS menu against our dark UI. */
 html {
-  color-scheme: light dark;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+  /* Windows Chromium draws the <select> popup as an OS menu that ignores color-scheme,
+     so paint the options directly — modern Chromium honors option bg/color. */
+  select option,
+  select optgroup {
+    background-color: #0f172a; /* slate-900 */
+    color: #e2e8f0; /* slate-200 */
+  }
 }
 body {
   margin: 0;
