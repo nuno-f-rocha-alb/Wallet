@@ -31,3 +31,38 @@ bob→id2 non-admin (isolated); no-auth→401; PWA root 200; **persisted across 
 restart** (alice still id1). CodeRabbit: see `reviews/wallet.md`.
 
 **Next**: Phase 1 — core ledger (accounts, categories, transactions, transfers, dashboard).
+
+---
+
+## §2 — Phase 1: core ledger (MVP)
+
+**What**: The full ledger. Backend (migration v2): `accounts`, `categories`,
+`transactions` (signed cents), `transfers`. Per-user CRUD, zod-validated, behind the
+authed plugin. New users seeded with the xlsx category taxonomy. Frontend: installable
+mobile-first PWA — Dashboard (month summary, account cards + CC utilization, category
+bars, recent), Transactions list, Manage (accounts + categories), add/edit forms +
+transfer, TanStack Query for cache/invalidation, Tailwind v4.
+
+**Decisions / root causes**
+- **One balance path**: a transfer = a `transfers` row + two mirror `transactions`
+  (−from, +to) linked by `transfer_id`. Balances stay `opening + Σ transactions`; the
+  dashboard excludes `transfer_id IS NOT NULL` from income/expense so internal moves
+  don't inflate either. Deleting the transfer cascade-deletes both legs.
+- **No router, no chart lib** (ponytail): 3-tab `useState` nav; category breakdown is
+  CSS bars. Kept TanStack Query (real invalidation-after-mutation value) + Tailwind
+  (Magic's design system; the Magic MCP returned malformed output so components were
+  hand-built and will be design-validated).
+- **Money** only in integer cents end-to-end; euros↔cents at the form edge.
+- **PATCH safety**: updates go through a whitelisted camel→snake column map (no dynamic
+  column names from input). Transfer legs can't be edited/deleted directly.
+- Account delete blocked (409) when it has transactions → archive instead. Category
+  delete detaches its transactions (`category_id=NULL`) and children rather than orphaning.
+
+**Gate**: typecheck ✓ · lint ✓ · vitest 8/8 (3 auth + 5 ledger: balances, transfer
+exclusion, deletion revert, isolation, guards) ✓ · build ✓. Live-verified in-browser
+(mobile): created an account (balance 1500), added a −42.50 Groceries expense → balance
+1457.50, dashboard Expenses/Net −42.50, category bar + recent list all updated live;
+Manage shows seeded taxonomy; Transfer hidden with <2 accounts. CodeRabbit: see
+`reviews/wallet.md`.
+
+**Next**: Phase 2 — car module (fuel log → L/100km, €/L, €/km, monthly car spend).

@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { User } from '@wallet/shared';
 import { getDb } from './db.js';
 import { env } from './env.js';
+import { seedDefaults } from './seed.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -43,9 +44,9 @@ function provision(extSubject: string, email: string | null, name: string | null
   const info = db
     .prepare('INSERT INTO users(ext_subject, email, display_name, is_admin) VALUES(?, ?, ?, ?)')
     .run(extSubject, email, name, isAdmin ? 1 : 0);
-  const row = db
-    .prepare('SELECT * FROM users WHERE id = ?')
-    .get(Number(info.lastInsertRowid)) as unknown as UserRow;
+  const newId = Number(info.lastInsertRowid);
+  seedDefaults(db, newId); // give the new user the default category taxonomy
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(newId) as unknown as UserRow;
   return toUser(row);
 }
 

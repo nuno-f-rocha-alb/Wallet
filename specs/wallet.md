@@ -157,16 +157,24 @@ reversible. **DoD**: importing the same fixture statement **twice** yields zero
 duplicates; a statement overlapping existing data inserts only new rows; parser
 handles a sample PT bank CSV; category memory reapplies a prior mapping.
 
-### Phase 5 — Receipt capture (QR-first, OCR fallback)
-Camera capture / file import. **Path A (primary): decode the AT QR code** (jsQR or
-zxing-wasm) → parse the `LETTER:value` payload → exact `O`=total, `F`=date,
-`A`=merchant NIF (+ store ATCUD/doc type) → prefilled draft transaction. **Path B
-(fallback): Tesseract.js OCR** with heuristics for total/date/merchant when no QR.
-Either way: confirm before commit; image stored + linked (`receipts`).
-**DoD**: a sample PT QR payload parses to the exact total/date/merchant (unit test
-on the parser incl. a malformed-payload case); a sample OCR-only receipt yields a
-total within tolerance; draft transaction created + image persisted; graceful
-"couldn't read, enter manually" fallback.
+### Phase 5 — Receipt capture (photo + OCR)
+Camera capture / file import → **Tesseract.js** OCR in-browser → heuristics for
+**total, date, merchant** → prefilled draft transaction for confirmation → image
+stored + linked (`receipts`).
+**QR path dropped** (user decision, 2026-07-23): the PT AT receipt QR carries only
+totals (with/without IVA) + date + merchant NIF — **no article/line-item names** — so
+it adds no value a transaction needs beyond the total, which OCR already gets. Kept as
+an optional later add only if OCR totals prove unreliable.
+**Canonical total**: the **IVA-inclusive grand total** (what was actually paid), stored
+as integer cents. OCR only *prefills* a draft the user confirms before commit — there is
+no silent tolerance; the committed amount is whatever the user confirms. The parser's
+suggested total is accepted into the draft only if it parses to a value within **±1 cent**
+of a total-like line; otherwise the amount is left blank for manual entry.
+**DoD**: a sample receipt image prefills, into a draft transaction the user confirms:
+(a) the IVA-inclusive **total** (±1 cent), (b) the **date** (parsed to `YYYY-MM-DD`, else
+left as today), and (c) a **merchant** string into the description (else left blank);
+image persisted + linked; graceful "couldn't read, enter manually" fallback when a field
+isn't found.
 
 ### Phase 6 — Statistics, insights & data portability
 Trends, YoY, savings rate, category drilldown, fiscal-year view (configurable

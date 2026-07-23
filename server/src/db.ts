@@ -28,6 +28,83 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       );
     `,
   },
+  {
+    // Composite (user_id, id) uniques + composite FKs so a row can only ever
+    // reference *its own user's* rows — tenant isolation enforced by the DB, not
+    // just the service layer. FKs on nullable cols (parent/category/transfer) use
+    // SQLite's default MATCH SIMPLE: not enforced when the column is NULL.
+    version: 2,
+    sql: `
+      CREATE TABLE accounts (
+        id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id               INTEGER NOT NULL REFERENCES users(id),
+        name                  TEXT NOT NULL,
+        type                  TEXT NOT NULL CHECK(type IN ('cash','bank','credit_card','loan')),
+        currency              TEXT NOT NULL DEFAULT 'EUR',
+        opening_balance_cents INTEGER NOT NULL DEFAULT 0,
+        credit_limit_cents    INTEGER,
+        archived              INTEGER NOT NULL DEFAULT 0,
+        sort                  INTEGER NOT NULL DEFAULT 0,
+        created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, id)
+      );
+      CREATE INDEX idx_accounts_user ON accounts(user_id);
+
+      CREATE TABLE categories (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL REFERENCES users(id),
+        name       TEXT NOT NULL,
+        parent_id  INTEGER,
+        kind       TEXT NOT NULL CHECK(kind IN ('expense','income')),
+        color      TEXT,
+        icon       TEXT,
+        archived   INTEGER NOT NULL DEFAULT 0,
+        sort       INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, id),
+        FOREIGN KEY(user_id, parent_id) REFERENCES categories(user_id, id)
+      );
+      CREATE INDEX idx_categories_user ON categories(user_id);
+
+      CREATE TABLE transfers (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id         INTEGER NOT NULL REFERENCES users(id),
+        date            TEXT NOT NULL,
+        from_account_id INTEGER NOT NULL,
+        to_account_id   INTEGER NOT NULL,
+        amount_cents    INTEGER NOT NULL CHECK(amount_cents > 0),
+        note            TEXT,
+        created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, id),
+        CHECK(from_account_id <> to_account_id),
+        FOREIGN KEY(user_id, from_account_id) REFERENCES accounts(user_id, id),
+        FOREIGN KEY(user_id, to_account_id) REFERENCES accounts(user_id, id)
+      );
+      CREATE INDEX idx_transfers_user ON transfers(user_id);
+
+      CREATE TABLE transactions (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id      INTEGER NOT NULL REFERENCES users(id),
+        date         TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL,
+        account_id   INTEGER NOT NULL,
+        category_id  INTEGER,
+        description  TEXT NOT NULL DEFAULT '',
+        note         TEXT,
+        source       TEXT NOT NULL DEFAULT 'manual'
+                       CHECK(source IN ('manual','receipt','bank','recurring')),
+        external_ref TEXT,
+        transfer_id  INTEGER,
+        created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY(user_id, account_id) REFERENCES accounts(user_id, id),
+        FOREIGN KEY(user_id, category_id) REFERENCES categories(user_id, id),
+        FOREIGN KEY(user_id, transfer_id) REFERENCES transfers(user_id, id) ON DELETE CASCADE
+      );
+      CREATE INDEX idx_tx_user_date ON transactions(user_id, date);
+      CREATE INDEX idx_tx_user_account ON transactions(user_id, account_id);
+      CREATE INDEX idx_tx_user_ext ON transactions(user_id, external_ref);
+    `,
+  },
 ];
 
 let _db: DatabaseSync | undefined;

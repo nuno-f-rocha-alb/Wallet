@@ -2,6 +2,9 @@
   "name": "wallet",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "workspaces": ["shared", "server", "web"],
   "scripts": {
     "dev:server": "npm run dev -w server",

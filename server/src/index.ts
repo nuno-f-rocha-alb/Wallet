@@ -7,6 +7,7 @@ import type { HealthResponse } from '@wallet/shared';
 import { env } from './env.js';
 import { closeDb, getDb } from './db.js';
 import { authHook } from './auth.js';
+import { registerRoutes } from './routes.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webDir = env.webDir ? resolve(env.webDir) : resolve(here, '../../web/dist');
@@ -27,7 +28,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // (which encoded separators like %2F could slip past). New API routes go here.
   await app.register(async (api) => {
     api.addHook('onRequest', authHook);
-    api.get('/api/me', async (req) => req.user);
+    registerRoutes(api);
   });
 
   // Serve the built PWA + SPA fallback.
