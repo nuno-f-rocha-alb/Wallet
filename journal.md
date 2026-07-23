@@ -346,8 +346,9 @@ rejected 400 on create and on the *merged* result of a PATCH. Final re-review: *
 **Gate**: typecheck ✓ · lint ✓ · vitest **52/52** (9 debt: 0%-interest, hand-computed interest,
 payment-below-interest, nothing-owed, rate switch, underwater-then-payable, missing-startMonth
 throw, beyond-horizon, monthPlus; + 1 ledger: rate-pair validation) ✓ · build ✓ · `docker compose
-build` ✓ · live-verified against the user's real loans — car credit reconciles to the lender's own
-"Montante Total Imputado" within €0.12 (capital 0 000,00 + interest 0 000,00 + 4% IS on interest).
+build` ✓ · live-verified against the owner's real loans (figures deliberately not recorded here):
+the car-credit projection reconciled with the lender's own "Montante Total Imputado" to within
+€0.12 once the 4% stamp duty on interest is added — a strong end-to-end check of the amortization.
 
 **Deferred**: payment-recalculation model (bank recalcs the prestação at each reset to hold the
 term) — current model holds the payment and extends the term, labelled in the UI.
