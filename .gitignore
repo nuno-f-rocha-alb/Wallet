@@ -6,3 +6,10 @@ data/
 .env
 .claude/settings.local.json
 reviews/cr-*.txt
+
+# local dev SQLite
+dev.db
+dev.db-*
+*.db
+*.db-shm
+*.db-wal

@@ -11,6 +11,10 @@
     "./parsers": {
       "types": "./parsers.ts",
       "import": "./parsers.ts"
+    },
+    "./receipt": {
+      "types": "./receipt.ts",
+      "import": "./receipt.ts"
     }
   }
 }

@@ -13,7 +13,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webDir = env.webDir ? resolve(env.webDir) : resolve(here, '../../web/dist');
 
 export async function buildApp(): Promise<FastifyInstance> {
-  const app = Fastify({ logger: !process.env.VITEST });
+  // bodyLimit lifts the 1 MB default so a base64 receipt photo fits (client downscales first).
+  const app = Fastify({ logger: !process.env.VITEST, bodyLimit: 16 * 1024 * 1024 });
   getDb(); // open + migrate on boot
   app.addHook('onClose', async () => closeDb());
   if (env.devUser && env.trustedProxies.length > 0) {

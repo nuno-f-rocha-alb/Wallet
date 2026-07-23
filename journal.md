@@ -217,3 +217,51 @@ trip (no `file_upload` tool on the automation surface) — extraction code is id
 validated Node path; flagged for a manual eyeball.
 
 **Next**: finish Phase 4 CR + manual browser check, then Phase 5 — receipt OCR (photo-only).
+
+---
+
+## §6 — Phase 5: receipt capture (photo + OCR)
+
+**What**: photo → in-browser Tesseract.js OCR → parse {total, date, merchant} → prefilled
+draft the user confirms → transaction (`source='receipt'`) + linked receipt image.
+
+**Design**
+- **Pure parser** (`shared/receipt.ts`, tested): `parseReceipt(text)` → total (IVA-inclusive
+  grand total; scans "total/a pagar/montante" lines, excludes subtotal/IVA/net/troco/tendered,
+  takes the max), date (ISO or PT `DD-MM-YYYY` → `YYYY-MM-DD`, calendar-validated, else null),
+  merchant (top line, skips fiscal noise, else null). `parseMoney` handles PT+EN separators.
+- **QR dropped** (spec 2026-07-23): the AT QR carries no line items, only totals OCR reads.
+- **Image storage = SQLite BLOB** (migration v7, `receipts`), not a filesystem path — stays
+  user-scoped and is served only through an authenticated route. Deleting the transaction
+  cascades the receipt (`ON DELETE CASCADE` on `transactions(user_id,id)` — added the required
+  UNIQUE index, which the original transactions table never declared).
+- **Atomic create**: `createReceipt` reuses `service.createTransaction` inside one BEGIN/COMMIT
+  with the receipt insert. Image retrieval keyed by **transaction id** (`GET
+  /api/receipts/by-tx/:id/image`) so the client can always reach it.
+- **Web**: `lib/ocr.ts` downscales (canvas, ≤1600px JPEG) then runs Tesseract `por+eng`;
+  `ReceiptCapture.tsx` (pick → reading-with-progress → confirm draft → done) with graceful
+  "couldn't read the {fields}" fallback; camera FAB in `App.tsx`. Fastify `bodyLimit` → 16 MB.
+
+**CodeRabbit** (3 iterations → clean):
+- major (correctness): "Montante entregue" (cash tendered) was picked as the total → added
+  `entregue|recebido` to the exclude regex + regression test.
+- major (contract): image route keyed on `receipts.id` but create returned only the
+  transaction → re-keyed the route on `transaction_id` (client always has it).
+- major (contract): `note` in the server type but never sent by the client → dropped the
+  unused `note` plumbing (receipt UI has no note field; column left empty).
+- **deferred** (security/privacy, documented `ponytail:` seam): Tesseract pulls its
+  worker/core/lang from jsDelivr by default. No *user* data leaves — only Tesseract's own
+  assets load. Self-hosting them (+ CSP worker/connect `self`) is additive hardening, not in
+  the DoD; upgrade path = vendor `*.traineddata` and set `langPath/workerPath/corePath`.
+Re-review after fixes: **0 findings**.
+
+**Gate**: typecheck ✓ · lint ✓ · vitest **36/36** (adds 6 receipt: parseMoney separators,
+grand-total-not-subtotal, date, merchant, tendered-not-total, all-null fallback) ✓ · build ✓
+(tesseract lazy-loads at runtime, main bundle unchanged) · `docker compose build` ✓ ·
+live-verify: POST `/api/receipts` → tx `source=receipt`, balance −257, image persisted +
+served 200 `image/png`, missing tx → 404. **Not yet verified**: the in-browser
+camera→OCR→confirm round trip (no `file_upload` on the automation surface) — same limitation as
+Phase 4; flagged for a manual eyeball before merge.
+
+**Next**: manual browser smoke test, merge to `main`, then Phase 6 — stats, insights &
+data portability.

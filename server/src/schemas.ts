@@ -137,6 +137,20 @@ export const importCommit = z.object({
     .max(5000),
 });
 
+// --- Phase 5: receipts ---
+
+export const receiptCreate = z.object({
+  date,
+  amountCents: cents.refine((v) => v !== 0, 'amount cannot be zero'),
+  accountId: z.number().int().positive(),
+  categoryId: z.number().int().positive().nullable().default(null),
+  description: z.string().trim().max(200).default(''),
+  imageBase64: z.string().min(1).max(16_000_000), // ~12 MB decoded; client downscales well below
+  mime: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  ocrText: z.string().max(50_000).nullable().default(null),
+  parsedJson: z.string().max(4000).nullable().default(null),
+});
+
 export const txListQuery = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
   accountId: z.coerce.number().int().positive().optional(),

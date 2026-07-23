@@ -259,3 +259,25 @@ export function useRevertImport() {
     },
   });
 }
+
+// ---- receipts ----
+
+export interface ReceiptBody {
+  date: string;
+  amountCents: number;
+  accountId: number;
+  categoryId: number | null;
+  description: string;
+  imageBase64: string;
+  mime: string;
+  ocrText: string | null;
+  parsedJson: string | null;
+}
+
+export function useCreateReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ReceiptBody) => api<Transaction>('/receipts', jsonBody(body)),
+    onSuccess: () => invalidateLedger(qc),
+  });
+}

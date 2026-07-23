@@ -204,6 +204,32 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       CREATE INDEX idx_tx_import ON transactions(import_id);
     `,
   },
+  {
+    // Phase 5 — receipt capture. The photo is stored as a BLOB (not a file path) so it
+    // stays user-scoped and is served only through an authenticated route — no static
+    // dir of everyone's receipts. Deleting the transaction cascades the receipt away.
+    // ponytail: blob-in-SQLite beats a filesystem + static-auth dance for phone photos.
+    version: 7,
+    sql: `
+      -- transactions never declared UNIQUE(user_id,id); a composite FK's parent must be
+      -- unique, so add the index before referencing it (id is PK, so this is trivially so).
+      CREATE UNIQUE INDEX idx_tx_user_id ON transactions(user_id, id);
+
+      CREATE TABLE receipts (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id        INTEGER NOT NULL REFERENCES users(id),
+        transaction_id INTEGER,
+        image          BLOB NOT NULL,
+        mime           TEXT NOT NULL,
+        ocr_text       TEXT,
+        parsed_json    TEXT,
+        created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, id),
+        FOREIGN KEY(user_id, transaction_id) REFERENCES transactions(user_id, id) ON DELETE CASCADE
+      );
+      CREATE INDEX idx_receipts_user ON receipts(user_id);
+    `,
+  },
 ];
 
 let _db: DatabaseSync | undefined;

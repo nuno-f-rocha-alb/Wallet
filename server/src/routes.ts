@@ -6,6 +6,7 @@ import * as svc from './service.js';
 import * as car from './car.js';
 import * as rec from './recurring.js';
 import * as bank from './bank.js';
+import * as receipts from './receipts.js';
 import * as S from './schemas.js';
 
 function uid(req: FastifyRequest): number {
@@ -159,5 +160,17 @@ export function registerRoutes(app: FastifyInstance): void {
   app.delete('/api/import/:id', async (req, reply) => {
     bank.revertImport(getDb(), uid(req), paramId(req));
     return reply.code(204).send();
+  });
+
+  // ---- receipts (Phase 5) ----
+  app.post('/api/receipts', async (req, reply) => {
+    const tx = receipts.createReceipt(getDb(), uid(req), S.receiptCreate.parse(req.body));
+    return reply.code(201).send(tx);
+  });
+  // :id is the transaction id — the client has it from create and from the tx list.
+  app.get('/api/receipts/by-tx/:id/image', async (req, reply) => {
+    const img = receipts.getReceiptImageByTx(getDb(), uid(req), paramId(req));
+    if (!img) throw new HttpError(404, 'receipt not found');
+    return reply.type(img.mime).send(img.data);
   });
 }

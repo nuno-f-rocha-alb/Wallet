@@ -16,6 +16,7 @@ import { VehicleForm } from './components/VehicleForm';
 import { FuelForm } from './components/FuelForm';
 import { RecurringForm } from './components/RecurringForm';
 import { ImportFlow } from './components/ImportFlow';
+import { ReceiptCapture } from './components/ReceiptCapture';
 
 type Tab = 'dashboard' | 'transactions' | 'car' | 'plan' | 'manage';
 type ModalState =
@@ -27,6 +28,7 @@ type ModalState =
   | { kind: 'fuel'; vehicleId: number; entry?: FuelEntry }
   | { kind: 'recurring'; rule?: RecurringRule; suggestion?: RuleSuggestion }
   | { kind: 'import' }
+  | { kind: 'receipt' }
   | null;
 
 export function App() {
@@ -106,6 +108,18 @@ export function App() {
         )}
       </main>
 
+      {/* Scan-receipt FAB (needs an account to file against) */}
+      {!noAccounts && (
+        <button
+          onClick={() => setModal({ kind: 'receipt' })}
+          aria-label="Scan receipt"
+          className="fixed bottom-36 right-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl shadow-lg hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700"
+          style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          📷
+        </button>
+      )}
+
       {/* FAB */}
       <button
         onClick={onFab}
@@ -173,6 +187,11 @@ export function App() {
       {modal?.kind === 'import' && (
         <Modal title="Import statement" onClose={close}>
           <ImportFlow accounts={accounts.data ?? []} categories={categories.data ?? []} onClose={close} />
+        </Modal>
+      )}
+      {modal?.kind === 'receipt' && (
+        <Modal title="Scan receipt" onClose={close}>
+          <ReceiptCapture accounts={accounts.data ?? []} categories={categories.data ?? []} onClose={close} />
         </Modal>
       )}
     </div>
