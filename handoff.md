@@ -6,22 +6,24 @@
 - **Gate record**: [`reviews/wallet.md`](reviews/wallet.md). **Journal**: [`journal.md`](journal.md).
 
 ## Done
-- **Phase 0 — foundation** ✅ PASSED + committed (`journal.md §1`).
-  One Docker container: Fastify serves `/api` + installable PWA. SQLite via built-in
-  `node:sqlite`. Multi-user auth trusting Authelia's forwarded identity (per-user
-  isolation, first user = admin, per-user bearer token, route-scoped auth plugin).
-  Runs non-root; compose binds loopback. Gate green; CodeRabbit clean (incl. a
-  @fastify/static CVE fix). Verified in-container: isolation, persistence, no bypass.
+- **Phase 0 — foundation** ✅ PASSED (`journal.md §1`). One container: Fastify + `/api` +
+  PWA, `node:sqlite`, Authelia multi-user auth, non-root, loopback bind.
+- **Phase 1 — core ledger (MVP)** ✅ PASSED (`journal.md §2`). Accounts/CC, categories
+  (seeded taxonomy), transactions (signed cents), transfers (row + 2 mirror legs),
+  dashboard (summary, account cards + CC utilization, category bars, recent). Tenant
+  isolation DB-enforced (owner-scoped composite FKs) + service checks. Mobile PWA
+  (React/Vite/Tailwind/TanStack Query). 9/9 tests; live-verified in browser.
 
 ## Next (in order)
-- **Phase 1 — core ledger (MVP)**: accounts (incl. credit cards), categories (seed the
-  xlsx taxonomy per user), transactions (signed cents) CRUD, transfers (incl. CC
-  payments), mobile quick-add, dashboard (month income/expense/net, per-category,
-  account balances + CC utilization, basic charts). All routes user-scoped + zod.
-  DoD in `specs/wallet.md § Phase 1`.
-- Then Phases 2–6: Car stats · Recurring+predictions · Bank import · Receipt QR/OCR ·
-  Stats & portability. (Phase 5 QR-first: PT AT receipt QR is plain-text, parse
-  `A`/`F`/`O` — see spec.)
+- **Phase 2 — car module**: vehicles, fuel log (date, odometer, liters, total price),
+  derived **L/100km** (consecutive full-fill odometer deltas; partial fills accumulate
+  into the next full fill), **€/L**, **€/km**, monthly car spend (fuel + Car-category
+  costs − reimbursements), car stats screen + charts. DoD in `specs/wallet.md § Phase 2`.
+  New tables → migration v3 (append; never edit shipped v1/v2). Follow the established
+  patterns: service.ts (money logic + tests), routes.ts (zod + authed plugin), a screen
+  wired via `api.ts` TanStack hooks.
+- Then Phases 3–6: Recurring+predictions · Bank import · Receipt OCR (photo-only, QR
+  dropped) · Stats & portability.
 
 ## Gate commands (must pass before a phase lands)
 ```
@@ -33,7 +35,7 @@ wsl -d Debian -e sh -lc "cd /mnt/c/Users/nunob/Repositorios/Wallet && coderabbit
 
 ## Resume line
 Open a new session in this repo, say **resume flow**; read `handoff.md` +
-`specs/wallet.md` + the `journal.md` tail, then build **Phase 1** on `flow/wallet`.
+`specs/wallet.md` + the `journal.md` tail, then build **Phase 2** on `flow/wallet`.
 
 ## Gotchas (this machine)
 - Node 25 local; `node:sqlite` loaded via `createRequire` so Vite/vitest don't choke.
