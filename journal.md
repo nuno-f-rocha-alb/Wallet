@@ -265,3 +265,48 @@ Phase 4; flagged for a manual eyeball before merge.
 
 **Next**: manual browser smoke test, merge to `main`, then Phase 6 — stats, insights &
 data portability.
+
+---
+
+## §7 — Phase 6: statistics, insights & data portability
+
+**What**: a Stats tab + full JSON/CSV export and JSON restore. Scoped to the two objective
+DoD gates (stats-match-fixtures, export→import round-trip); investments & debt tracker
+**deferred** (heavy new subsystems, not in the gate — see below).
+
+**Design**
+- **`shared`→`server/src/stats.ts`** (tested): pure `fiscalYearStart`/`addMonths`/`savingsRate`
+  + `getStats` → monthly `trend` (last N, transfers excluded), current + previous fiscal-year
+  rollup (YoY), FY category breakdown. Fiscal year honors the per-user `fy_start_month`.
+- **`server/src/backup.ts`** (tested): generic export/import over all 9 user tables. Export
+  preserves ids (relationships round-trip exactly); `receipts.image` BLOB → base64. Import wipes
+  the user's rows and reinserts under one transaction with `PRAGMA defer_foreign_keys=ON` (order-
+  independent, FKs checked at COMMIT); `user_id` forced to the caller so a foreign backup can't
+  smuggle another owner. CSV = transactions joined to account/category names, euros signed.
+- **Routes**: `GET /api/stats`, `GET /api/export` (+ `.csv`), `POST /api/import/backup`.
+- **Web**: `Stats.tsx` (FY tiles: net / savings-rate / YoY; net-by-month bars; FY expense
+  breakdown), 6th nav tab. Manage gains a **Data** section: Export JSON / Export CSV / Restore
+  (file → confirm → replace). `qc.invalidateQueries()` after a restore (everything changed).
+
+**Deferred (surfaced, not silently dropped)**: investment tracking (buys/sells, realized P/L,
+DCA) and the debt/payoff tracker from the spec's Phase 6 narrative. Both need new tables and real
+modeling, and neither is part of the objective gate. Flagged for a follow-up phase if wanted.
+
+**CodeRabbit** (iteration 1 → fixed): 1 critical + 1 major, same root cause — `importBackup` built
+the INSERT **column-name** list from `Object.keys(row)` (untrusted JSON keys); values were
+parameterized but column names were interpolated → SQL-injection surface via a crafted backup
+file. Fixed by filtering incoming keys against a **schema-derived whitelist** (`PRAGMA
+table_info`, cached) in `backup.ts`, plus a zod envelope validation (`S.backupImport`) at the
+route. Regression test: a backup row carrying `x) VALUES(1);DROP TABLE accounts;--` imports 201
+with the junk key dropped and the table intact.
+
+**Gate**: typecheck ✓ · lint ✓ · vitest **42/42** (adds 2 stats: pure FY/rate math + a seeded
+fixture asserting FY/YoY/trend-window/savings-rate/category; 4 backup: export→import deep-equal
+round-trip, replace-not-duplicate + user isolation, CSV shape, injection-key drop) ✓ · build ✓ ·
+`docker compose build` ✓ · live-verify on the real dev DB: `/api/stats` (FY net −€25.72 from the
+two receipts), `/api/export` (JSON w/ base64 receipts + download header), `/api/export.csv`,
+`/api/import/backup` (201, account replaced not duplicated). CodeRabbit re-review after the fix:
+**0 findings**.
+
+**Next**: Phase 6 is the last planned phase. Open items = investments + debt tracker (deferred),
+plus the spec's other Deferred list (household sharing, offline writes, cloud OCR, FX).

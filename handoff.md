@@ -23,28 +23,31 @@
   yearly), `projectForecast` (rules + 6-mo avg, no double-count), `detectRecurring`.
   Idempotent auto-post (external_ref `recur:<id>:<date>` + `last_posted_date`), fires on app
   open. Plan tab (5th): forecast bars, suggestions w/ prefill, upcoming, rules. 20/20 tests.
+- **Phase 4 — bank import (PDF)** ✅ PASSED, MERGED `@ a442c6e` (`journal.md §5`). `bank.ts`
+  (dedup index; CGD parser, PDF-only; merchant memory; reversible batch), migration v6.
+- **Phase 5 — receipt capture (photo + OCR)** ✅ PASSED, MERGED `@ 9722340` (`journal.md §6`).
+  On-device Tesseract → pure `parseReceipt` (IVA-incl. total/date/merchant) → confirmed draft →
+  transaction + receipt image (user-scoped SQLite BLOB, migration v7). Smoke-tested in-browser.
+  Also fixed the dark native `<select>` popup on Windows Chromium. CodeRabbit 0 findings.
 
-## Phase 5 — receipt capture (photo + OCR) (COMMITTED on `flow/wallet`, NOT yet on `main`)
-Built this session (journal `§6`), gate green (typecheck/lint/**36 tests**/build/`docker compose
-build`), **CodeRabbit 0 findings** (3 major fixed: tendered-amount-as-total, image route keyed on
-tx id, dropped unused `note`; 1 deferred: self-host OCR assets — no user data leaves). Held back
-from `main` pending the manual browser smoke test below (same `file_upload` limitation as Phase 4).
-- migration **v7**: `receipts` (image BLOB, ocr_text, parsed_json) + UNIQUE index on
-  `transactions(user_id,id)`; receipt cascades when its transaction is deleted.
-- `shared/receipt.ts` (+ `receipt.test.ts`): pure `parseReceipt` (total/date/merchant) + `parseMoney`.
-- `server/src/receipts.ts` (+ route `POST /api/receipts`, `GET /api/receipts/by-tx/:id/image`),
-  atomic tx+receipt insert; Fastify `bodyLimit` 16 MB.
-- `web/src/lib/ocr.ts` (downscale + Tesseract `por+eng`), `ReceiptCapture.tsx`, camera FAB.
-- **QR path dropped** (spec 2026-07-23). `tesseract.js` added to web.
+## Phase 6 — statistics & data portability (COMMITTED on `flow/wallet`, NOT yet on `main`)
+Built this session (journal `§7`). Gate: typecheck/lint/**42 tests**/build/`docker compose build`
+all green; live-verified (`/api/stats`, `/api/export[.csv]`, `/api/import/backup`). **CodeRabbit
+0 findings** (fixed 1 critical + 1 major: SQL-injection via untrusted backup column keys →
+schema-derived column whitelist + zod envelope validation + regression test).
+- `server/src/stats.ts` (+ test): pure FY/rate math + `getStats` (trend, FY + prev-FY YoY, FY
+  category breakdown; honors per-user `fy_start_month`).
+- `server/src/backup.ts` (+ test): generic JSON export/import over all 9 user tables (ids
+  preserved, receipts base64; import wipes+restores under `defer_foreign_keys`), CSV export.
+- Routes `GET /api/stats`, `GET /api/export`(+`.csv`), `POST /api/import/backup`.
+- `web`: `Stats.tsx` (6th tab: FY tiles, net-by-month bars, expense breakdown); Manage **Data**
+  section (Export JSON/CSV, Restore w/ confirm).
+- **Deferred** (not in the objective gate, surfaced): investment tracking + debt/payoff tracker.
 
-### To finish Phase 5
-1. ✅ CodeRabbit — clean (0 findings).
-2. **Manual browser smoke test** (no `file_upload` on the agent surface): open the app → tap the
-   📷 FAB → pick/snap a receipt → wait for OCR → confirm the draft prefilled the total (IVA-incl.),
-   date, merchant (or shows the "couldn't read" hint) → Save → check the transaction + balance.
-   Deleting that transaction should drop its receipt.
-3. **Merge to `main`**: `git switch main && git merge --ff-only flow/wallet`.
-4. Optional later: self-host Tesseract assets (+ CSP); show a receipt thumbnail on the tx row.
+### To finish Phase 6
+1. CodeRabbit clean (re-run pending) → fix Critical/relevant.
+2. **Merge to `main`**: `git switch main && git merge --ff-only flow/wallet`.
+3. Decide on the deferred investments + debt tracker (own phase if wanted).
 
 ## Phase 4 — bank import (MERGED to `main` @ `a442c6e`)
 Built this session (journal `§5`), gate green (typecheck/lint/**29 tests**/build), **CodeRabbit
@@ -63,8 +66,13 @@ Phase 4 passed its manual smoke test and merged to `main` (§4/§5 done). Option
 opening-balance regex on the real CGD layout; generic CSV path; more banks. **Do not commit the
 real statement or its data** — only the synthetic fixture in `shared/parsers.test.ts`.
 
-## Next (after Phase 5)
-- Phase 6: Statistics, insights & data portability (trends, YoY, investments, debt, export/import).
+## Next (after Phase 6)
+All 7 spec phases (0–6) built. Remaining, all **deferred** (build only if asked):
+- **Investments** (buys/sells, realized P/L, DCA) and **debt/payoff tracker** — Phase 6 narrative,
+  cut from the objective gate; each is a new-table subsystem.
+- Spec's Deferred list: household sharing, offline writes, cloud OCR, multi-currency FX.
+- Odds & ends: self-host Tesseract assets (+CSP); receipt thumbnail on the tx row; generic CSV
+  bank import; opening-balance regex on the real CGD layout.
 
 ## Gate commands (must pass before a phase lands)
 ```
@@ -76,9 +84,10 @@ wsl -d Debian -e sh -lc "cd /mnt/c/Users/nunob/Repositorios/Wallet && coderabbit
 
 ## Resume line
 Open a new session in this repo, say **resume flow**; read `handoff.md` +
-`specs/wallet.md` + the `journal.md` tail. **Phase 5 is committed on `flow/wallet`,
-CodeRabbit-clean, but NOT on `main`** — do the manual browser smoke test (📷 FAB → snap receipt →
-confirm draft → Save), merge to `main`, then move to Phase 6 (stats, insights & data portability).
+`specs/wallet.md` + the `journal.md` tail. **Phase 6 (stats & portability) is committed on
+`flow/wallet`, NOT yet on `main`, CodeRabbit re-run pending.** Confirm CodeRabbit is clean, merge
+to `main` (`git switch main && git merge --ff-only flow/wallet`). All 7 phases then built; only the
+deferred items (investments, debt tracker, etc.) remain.
 
 ## Gotchas (this machine)
 - Node 25 local; `node:sqlite` loaded via `createRequire` so Vite/vitest don't choke.

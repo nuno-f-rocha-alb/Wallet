@@ -1,5 +1,6 @@
-import type { Account, Category } from '@wallet/shared';
-import { useAccounts, useCategories, useImports, useRevertImport } from '../api';
+import { useState } from 'react';
+import type { Account, BackupData, Category } from '@wallet/shared';
+import { downloadExport, useAccounts, useCategories, useImportBackup, useImports, useRevertImport } from '../api';
 import { money } from '../format';
 import { btnDanger, btnGhost, btnPrimary, card } from './ui';
 
@@ -22,9 +23,25 @@ export function Manage({
   const cats = useCategories();
   const imports = useImports();
   const revert = useRevertImport();
+  const restore = useImportBackup();
+  const [dataMsg, setDataMsg] = useState<string>();
   const list = accounts.data ?? [];
   const catList = cats.data ?? [];
   const importList = imports.data ?? [];
+
+  async function onRestoreFile(file: File | undefined) {
+    if (!file) return;
+    setDataMsg(undefined);
+    if (!confirm('Restore this backup? It REPLACES all your current data with the file contents.')) return;
+    try {
+      const data = JSON.parse(await file.text()) as BackupData;
+      const res = await restore.mutateAsync(data);
+      const n = Object.values(res.restored).reduce((a, b) => a + b, 0);
+      setDataMsg(`Restored ${n} rows.`);
+    } catch (e) {
+      setDataMsg(e instanceof Error ? e.message : 'Import failed.');
+    }
+  }
 
   return (
     <div className="space-y-6 p-4">
@@ -92,6 +109,22 @@ export function Manage({
             </li>
           ))}
         </ul>
+      </section>
+
+      <section>
+        <h3 className="mb-2 text-sm font-semibold text-slate-500">Data</h3>
+        <div className={`${card} space-y-3 p-3`}>
+          <div className="flex flex-wrap gap-2">
+            <button className={btnGhost} onClick={() => downloadExport('json')}>Export backup (JSON)</button>
+            <button className={btnGhost} onClick={() => downloadExport('csv')}>Export transactions (CSV)</button>
+            <label className={`${btnPrimary} cursor-pointer`}>
+              Restore backup
+              <input type="file" accept="application/json" className="hidden" disabled={restore.isPending} onChange={(e) => onRestoreFile(e.target.files?.[0])} />
+            </label>
+          </div>
+          <p className="text-xs text-slate-400">Restore replaces all your data with the backup file. Export first if unsure.</p>
+          {dataMsg && <p className="text-xs text-slate-500">{dataMsg}</p>}
+        </div>
       </section>
     </div>
   );

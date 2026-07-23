@@ -7,6 +7,7 @@ import { Transactions } from './components/Transactions';
 import { Manage } from './components/Manage';
 import { Car } from './components/Car';
 import { Plan } from './components/Plan';
+import { Stats } from './components/Stats';
 import { Modal } from './components/Modal';
 import { TransactionForm } from './components/TransactionForm';
 import { AccountForm } from './components/AccountForm';
@@ -18,7 +19,7 @@ import { RecurringForm } from './components/RecurringForm';
 import { ImportFlow } from './components/ImportFlow';
 import { ReceiptCapture } from './components/ReceiptCapture';
 
-type Tab = 'dashboard' | 'transactions' | 'car' | 'plan' | 'manage';
+type Tab = 'dashboard' | 'transactions' | 'car' | 'plan' | 'stats' | 'manage';
 type ModalState =
   | { kind: 'tx'; tx?: Transaction }
   | { kind: 'account'; account?: Account }
@@ -96,6 +97,7 @@ export function App() {
             onCreateFromSuggestion={(suggestion) => setModal({ kind: 'recurring', suggestion })}
           />
         )}
+        {tab === 'stats' && <Stats />}
         {tab === 'manage' && (
           <Manage
             onAddAccount={() => setModal({ kind: 'account' })}
@@ -131,12 +133,12 @@ export function App() {
       </button>
 
       {/* bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900">
-        {(['dashboard', 'transactions', 'car', 'plan', 'manage'] as Tab[]).map((t) => (
+      <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-6 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900">
+        {(['dashboard', 'transactions', 'car', 'plan', 'stats', 'manage'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`py-3 text-sm font-medium capitalize ${tab === t ? 'text-blue-600' : 'text-slate-400'}`}
+            className={`py-3 text-xs font-medium capitalize ${tab === t ? 'text-blue-600' : 'text-slate-400'}`}
           >
             {t}
           </button>

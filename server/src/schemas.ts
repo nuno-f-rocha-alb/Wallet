@@ -151,6 +151,18 @@ export const receiptCreate = z.object({
   parsedJson: z.string().max(4000).nullable().default(null),
 });
 
+// --- Phase 6: statistics ---
+
+export const statsQuery = z.object({ months: z.coerce.number().int().positive().max(60).default(12) });
+
+// Validate the backup envelope shape before restore. Row column names are further filtered
+// against the real schema in backup.ts, so no untrusted key reaches SQL.
+export const backupImport = z.object({
+  version: z.literal(1),
+  exportedAt: z.string().default(''),
+  tables: z.record(z.string(), z.array(z.record(z.string(), z.unknown()))),
+});
+
 export const txListQuery = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
   accountId: z.coerce.number().int().positive().optional(),

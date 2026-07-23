@@ -228,3 +228,36 @@ export interface CommitResult {
   inserted: number;
   skipped: number; // rows that turned out to be duplicates at commit time
 }
+
+// --- Phase 6: statistics & data portability ---
+
+export interface TrendPoint {
+  month: string; // YYYY-MM
+  incomeCents: number;
+  expenseCents: number; // negative
+  netCents: number;
+}
+
+/** Income/expense/net for one fiscal year (start month is per-user configurable). */
+export interface FyRollup {
+  label: string; // start year, e.g. "2026"
+  startMonth: string; // YYYY-MM the FY begins
+  incomeCents: number;
+  expenseCents: number; // negative
+  netCents: number;
+  savingsRate: number; // net/income, 0-1
+}
+
+export interface StatsResponse {
+  trend: TrendPoint[]; // last N months, oldest first
+  fiscalYear: FyRollup; // current FY
+  previousFiscalYear: FyRollup; // prior FY, for YoY
+  byCategory: CategoryTotal[]; // current FY breakdown, most-negative first
+}
+
+/** Full user backup. Rows are raw snake_case DB rows (ids preserved); receipts.image is base64. */
+export interface BackupData {
+  version: 1;
+  exportedAt: string;
+  tables: Record<string, Record<string, unknown>[]>;
+}

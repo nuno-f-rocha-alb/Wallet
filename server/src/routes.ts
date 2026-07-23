@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { BackupData } from '@wallet/shared';
 import { ZodError } from 'zod';
 import { getDb } from './db.js';
 import { HttpError } from './errors.js';
@@ -7,6 +8,8 @@ import * as car from './car.js';
 import * as rec from './recurring.js';
 import * as bank from './bank.js';
 import * as receipts from './receipts.js';
+import * as stats from './stats.js';
+import * as backup from './backup.js';
 import * as S from './schemas.js';
 
 function uid(req: FastifyRequest): number {
@@ -173,4 +176,22 @@ export function registerRoutes(app: FastifyInstance): void {
     if (!img) throw new HttpError(404, 'receipt not found');
     return reply.type(img.mime).send(img.data);
   });
+
+  // ---- stats & portability (Phase 6) ----
+  app.get('/api/stats', async (req) => {
+    const { months } = S.statsQuery.parse(req.query);
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    return stats.getStats(getDb(), uid(req), thisMonth, req.user!.fyStartMonth, months);
+  });
+  app.get('/api/export', async (req, reply) => {
+    reply.header('content-disposition', 'attachment; filename="wallet-backup.json"');
+    return backup.exportBackup(getDb(), uid(req));
+  });
+  app.get('/api/export.csv', async (req, reply) => {
+    reply.header('content-disposition', 'attachment; filename="wallet-transactions.csv"');
+    return reply.type('text/csv').send(backup.exportCsv(getDb(), uid(req)));
+  });
+  app.post('/api/import/backup', async (req, reply) =>
+    reply.code(201).send(backup.importBackup(getDb(), uid(req), S.backupImport.parse(req.body) as BackupData)),
+  );
 }

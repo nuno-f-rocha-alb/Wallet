@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query';
 import type {
   Account,
+  BackupData,
   CarStatsResponse,
   Category,
   CommitResult,
@@ -18,6 +19,7 @@ import type {
   ParsedRow,
   RecurringRule,
   RuleSuggestion,
+  StatsResponse,
   Transaction,
   Transfer,
   User,
@@ -279,5 +281,31 @@ export function useCreateReceipt() {
   return useMutation({
     mutationFn: (body: ReceiptBody) => api<Transaction>('/receipts', jsonBody(body)),
     onSuccess: () => invalidateLedger(qc),
+  });
+}
+
+// ---- stats & portability ----
+
+export const useStats = (months = 12) =>
+  useQuery({ queryKey: ['stats', months], queryFn: () => api<StatsResponse>(`/stats?months=${months}`) });
+
+/** Fetch an export and trigger a browser download (blob, not JSON-parsed). */
+export async function downloadExport(kind: 'json' | 'csv'): Promise<void> {
+  const path = kind === 'csv' ? '/api/export.csv' : '/api/export';
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`export failed (${res.status})`);
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = kind === 'csv' ? 'wallet-transactions.csv' : 'wallet-backup.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+export function useImportBackup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: BackupData) => api<{ restored: Record<string, number> }>('/import/backup', jsonBody(data)),
+    onSuccess: () => qc.invalidateQueries(), // a full restore changes everything
   });
 }
