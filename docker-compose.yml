@@ -1,19 +1,27 @@
 services:
   wallet:
+    # Pull the pre-built image, OR build from source (either works):
+    #   docker compose up -d           → uses the image if present, else builds
+    #   docker compose up -d --build   → always builds from this checkout
+    #   docker compose pull            → fetch the latest published image
+    image: ghcr.io/nuno-f-rocha-alb/wallet:latest
     build: .
     container_name: wallet
     restart: unless-stopped
     # Bind to loopback so ingress only comes through your reverse proxy (+ Authelia),
     # never directly. If the proxy is another Compose service, drop `ports` and put
-    # both on a shared network with `expose: ["8080"]` instead.
+    # both on a shared network with `expose: ["8080"]` instead (see README).
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
       - wallet-data:/data
+    # Values come from a local .env (see .env.example) or the shell; the defaults here
+    # make the app boot with no .env at all (dev-user login, no proxy trusted).
     environment:
       PORT: 8080
       DB_PATH: /data/wallet.db
       WEB_DIR: /app/web/dist
+      APP_VERSION: ${APP_VERSION:-}
       # --- Behind Authelia (production) ---
       # IP(s) of your reverse proxy container/host allowed to set identity headers.
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
@@ -21,7 +29,7 @@ services:
       AUTH_HEADER_EMAIL: ${AUTH_HEADER_EMAIL:-remote-email}
       AUTH_HEADER_NAME: ${AUTH_HEADER_NAME:-remote-name}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
-      # --- Local testing WITHOUT Authelia (leave empty in production) ---
+      # --- Local testing WITHOUT Authelia (leave BOTH empty in production) ---
       AUTH_DEV_USER: ${AUTH_DEV_USER:-}
       AUTH_DEV_EMAIL: ${AUTH_DEV_EMAIL:-}
 
