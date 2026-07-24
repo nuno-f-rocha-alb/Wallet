@@ -250,6 +250,12 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       ALTER TABLE accounts ADD COLUMN variable_rate_bps INTEGER;
     `,
   },
+  {
+    // Contractual final month (YYYY-MM). When set, a rate reset re-levels the payment over the
+    // months left instead of dragging the term out — what lenders actually do.
+    version: 10,
+    sql: `ALTER TABLE accounts ADD COLUMN term_end_month TEXT;`,
+  },
 ];
 
 let _db: DatabaseSync | undefined;

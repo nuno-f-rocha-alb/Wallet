@@ -34,6 +34,8 @@ export interface Account {
   /** Optional one fixed→variable rate switch: from this month, use variableRateBps. */
   rateVariableFrom: string | null; // YYYY-MM
   variableRateBps: number | null;
+  /** Contractual final month (YYYY-MM); makes a rate reset re-level the payment, not the term. */
+  termEndMonth: string | null;
   /** Computed (opening + Σ transactions); present in list/dashboard responses. */
   balanceCents?: number;
 }
@@ -64,6 +66,8 @@ export interface Transaction {
   source: TxSource;
   /** Non-null when this row is one leg of a transfer (excluded from income/expense). */
   transferId: number | null;
+  /** True when a receipt image is linked; present in list responses. */
+  hasReceipt?: boolean;
 }
 
 export interface Transfer {
@@ -278,6 +282,8 @@ export interface DebtLine {
   monthlyPaymentCents: number | null;
   rateVariableFrom: string | null; // YYYY-MM the rate switches to variable
   variableRateBps: number | null; // rate from that month
+  termEndMonth: string | null; // contractual final month, when the term is held
+  paymentAfterChangeCents: number | null; // re-levelled payment from the reset on
   coversInterest: boolean; // false when the payment can't cover the interest
   payoffMonths: number | null; // months to clear, when terms are set and finite
   payoffDate: string | null; // YYYY-MM

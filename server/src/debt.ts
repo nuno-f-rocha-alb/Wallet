@@ -7,12 +7,14 @@ const rows = <T>(r: unknown[]): T[] => r as T[];
 
 /** Loans & credit cards with a balance owed, each with its amortization projection. */
 export function getDebts(db: DatabaseSync, userId: number): DebtSummary {
-  const thisMonth = new Date().toISOString().slice(0, 7);
+  // Month index 0 is the next payment, i.e. next month — this month's is assumed already made.
+  // Keeping that convention is what lets a term-held loan land on its contractual final month.
+  const firstPaymentMonth = monthPlus(new Date().toISOString().slice(0, 7), 1);
   const raw = rows<Row>(
     db
       .prepare(
         `SELECT a.id, a.name, a.type, a.interest_rate_bps, a.monthly_payment_cents,
-           a.rate_variable_from, a.variable_rate_bps,
+           a.rate_variable_from, a.variable_rate_bps, a.term_end_month,
            a.opening_balance_cents + COALESCE(
              (SELECT SUM(t.amount_cents) FROM transactions t
               WHERE t.account_id = a.id AND t.user_id = a.user_id), 0) AS balance_cents
@@ -34,6 +36,7 @@ export function getDebts(db: DatabaseSync, userId: number): DebtSummary {
     const payment = (r.monthly_payment_cents as number | null) ?? null;
     const variableFrom = (r.rate_variable_from as string | null) ?? null;
     const variableRateBps = (r.variable_rate_bps as number | null) ?? null;
+    const termEndMonth = (r.term_end_month as string | null) ?? null;
     totalOwed += outstanding;
     if (payment) totalMonthly += payment;
 
@@ -41,13 +44,23 @@ export function getDebts(db: DatabaseSync, userId: number): DebtSummary {
     let payoffMonths: number | null = null;
     let totalInterestCents: number | null = null;
     let payoffDate: string | null = null;
+    let paymentAfterChangeCents: number | null = null;
     if (rateBps !== null && payment !== null) {
       const rateChange = variableFrom && variableRateBps !== null ? { fromMonth: variableFrom, annualRateBps: variableRateBps } : null;
-      const a = amortize({ outstandingCents: outstanding, annualRateBps: rateBps, paymentCents: payment, startMonth: thisMonth, rateChange });
+      const a = amortize({
+        outstandingCents: outstanding,
+        annualRateBps: rateBps,
+        paymentCents: payment,
+        startMonth: firstPaymentMonth,
+        rateChange,
+        holdTermTo: termEndMonth,
+      });
+      paymentAfterChangeCents = a.paymentAfterChangeCents;
       coversInterest = a.coversInterest;
       payoffMonths = a.payoffMonths;
       totalInterestCents = a.totalInterestCents;
-      payoffDate = a.payoffMonths !== null ? monthPlus(thisMonth, a.payoffMonths) : null;
+      // last payment is at index payoffMonths-1, counting from firstPaymentMonth
+      payoffDate = a.payoffMonths !== null && a.payoffMonths > 0 ? monthPlus(firstPaymentMonth, a.payoffMonths - 1) : null;
     }
 
     lines.push({
@@ -59,6 +72,8 @@ export function getDebts(db: DatabaseSync, userId: number): DebtSummary {
       monthlyPaymentCents: payment,
       rateVariableFrom: variableFrom,
       variableRateBps,
+      termEndMonth,
+      paymentAfterChangeCents,
       coversInterest,
       payoffMonths,
       payoffDate,

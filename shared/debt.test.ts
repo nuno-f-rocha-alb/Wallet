@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { amortize, monthPlus } from './debt.js';
+import { amortize, annuityPayment, monthPlus } from './debt.js';
 
 describe('amortize', () => {
   it('0% interest: months = balance / payment, no interest', () => {
@@ -31,10 +31,10 @@ describe('amortize', () => {
 
   it('applies a fixed→variable rate switch mid-loan', () => {
     // €300 owed, €100/mo, start 2026-01. Fixed 0% until the switch, then 120%/yr (10%/mo) from 2026-02.
-    // M0 2026-01 (0%): int 0,   prin 100 → bal 200
-    // M1 2026-02 (10%): int 20, prin 80  → bal 120 (int 20)
-    // M2 2026-03 (10%): int 1200, prin 8800 → bal 3200 (int 1200)
-    // M3 2026-04 (10%): int 320,  prin capped 3200 → bal 0 (int 320)
+    // (cents) M0 2026-01  (0%): int    0, prin 10000        → bal 20000
+    //         M1 2026-02 (10%): int 2000, prin  8000        → bal 12000
+    //         M2 2026-03 (10%): int 1200, prin  8800        → bal  3200
+    //         M3 2026-04 (10%): int  320, prin capped 3200  → bal     0
     const r = amortize({
       outstandingCents: 30000,
       annualRateBps: 0,
@@ -58,6 +58,53 @@ describe('amortize', () => {
     });
     expect(r.payoffMonths).toBe(4);
     expect(r.totalInterestCents).toBe(10000);
+  });
+
+  it('holdTermTo re-levels the payment at the reset and keeps the contractual end month', () => {
+    // €1000 over 10 months at 0%, so €100/mo. At month 5 the rate jumps; holding the term to
+    // 2026-10 must raise the payment so it still clears exactly then (not drift past it).
+    const held = amortize({
+      outstandingCents: 100000,
+      annualRateBps: 0,
+      paymentCents: 10000,
+      startMonth: '2026-01',
+      rateChange: { fromMonth: '2026-06', annualRateBps: 120_00 },
+      holdTermTo: '2026-10',
+    });
+    expect(held.payoffMonths).toBe(10); // 2026-01 … 2026-10 — term preserved
+    expect(held.paymentAfterChangeCents).toBeGreaterThan(10000); // payment went up
+
+    // Same loan without holdTermTo: payment stays put, so the higher rate drags the term out.
+    const drifted = amortize({
+      outstandingCents: 100000,
+      annualRateBps: 0,
+      paymentCents: 10000,
+      startMonth: '2026-01',
+      rateChange: { fromMonth: '2026-06', annualRateBps: 120_00 },
+    });
+    expect(drifted.payoffMonths).toBeGreaterThan(10);
+    expect(drifted.paymentAfterChangeCents).toBeNull();
+  });
+
+  it('re-levels even when the reset already took effect before the projection starts', () => {
+    // Reset was 2026-06; we only start projecting in 2026-08. The payment must still be
+    // re-levelled over the months left, not left stale at the pre-reset figure.
+    const r = amortize({
+      outstandingCents: 100000,
+      annualRateBps: 0,
+      paymentCents: 10000,
+      startMonth: '2026-08',
+      rateChange: { fromMonth: '2026-06', annualRateBps: 120_00 },
+      holdTermTo: '2026-12',
+    });
+    expect(r.paymentAfterChangeCents).not.toBeNull();
+    expect(r.payoffMonths).toBe(5); // 2026-08 … 2026-12, the contractual end
+  });
+
+  it('annuityPayment matches the standard formula (and 0% divides evenly)', () => {
+    expect(annuityPayment(100000, 0, 10)).toBe(10000);
+    // €7,065.78 at 9.5%/yr over 120 months → €91.43 (a real lender quote)
+    expect(annuityPayment(706578, 0.095 / 12, 120)).toBe(9143);
   });
 
   it('rateChange without startMonth is rejected', () => {

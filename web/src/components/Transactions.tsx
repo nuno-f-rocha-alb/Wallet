@@ -31,6 +31,14 @@ export function Transactions({ month, onEditTx }: { month: string; onEditTx: (tx
                   {t.categoryId ? ` · ${catName.get(t.categoryId)}` : ''}
                 </span>
               </span>
+              {t.hasReceipt && (
+                <img
+                  src={`/api/receipts/by-tx/${t.id}/image`}
+                  alt="Receipt"
+                  loading="lazy"
+                  className="h-9 w-9 shrink-0 rounded border border-slate-200 object-cover dark:border-slate-700"
+                />
+              )}
               <span className={`shrink-0 font-medium tabular-nums ${t.amountCents < 0 ? 'text-red-600' : 'text-green-600'}`}>
                 {money(t.amountCents)}
               </span>

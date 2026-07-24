@@ -24,6 +24,7 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
   const [payment, setPayment] = useState(account?.monthlyPaymentCents != null ? (account.monthlyPaymentCents / 100).toString() : '');
   const [varFrom, setVarFrom] = useState(account?.rateVariableFrom ?? '');
   const [varRate, setVarRate] = useState(account?.variableRateBps != null ? (account.variableRateBps / 100).toString() : '');
+  const [termEnd, setTermEnd] = useState(account?.termEndMonth ?? '');
 
   const isDebt = type === 'loan' || type === 'credit_card';
 
@@ -41,6 +42,7 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
         monthlyPaymentCents: isDebt && payment !== '' ? toCents(Number(payment)) : null,
         rateVariableFrom: isDebt && varFrom !== '' && varRate !== '' ? varFrom : null,
         variableRateBps: isDebt && varFrom !== '' && varRate !== '' ? Math.round(Number(varRate) * 100) : null,
+        termEndMonth: isDebt && termEnd !== '' ? termEnd : null,
       },
       { onSuccess: onClose },
     );
@@ -95,7 +97,15 @@ export function AccountForm({ account, onClose }: { account?: Account; onClose: 
               <input id="varRate" className={input} type="number" inputMode="decimal" step="0.01" min="0" value={varRate} onChange={(e) => setVarRate(e.target.value)} placeholder="Euribor + spread" />
             </div>
           </div>
-          <p className="mt-1 text-[11px] text-slate-400">The rate above applies until this month; from then the projection uses the variable rate. Update it on each Euribor reset.</p>
+          <div className="mt-2">
+            <label className={label} htmlFor="termEnd">Loan ends (month) — optional</label>
+            <input id="termEnd" className={input} type="month" value={termEnd} onChange={(e) => setTermEnd(e.target.value)} />
+          </div>
+          <p className="mt-1 text-[11px] text-slate-400">
+            The rate above applies until the variable month; from then the projection uses the variable rate — update it on each
+            Euribor reset. Set the end month if your lender keeps the term and re-levels the payment at each reset (most PT
+            mortgages); leave it blank to project a fixed payment with a drifting term.
+          </p>
         </details>
       )}
 

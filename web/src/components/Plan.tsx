@@ -61,7 +61,11 @@ export function Plan({
                       {' · '}{money(d.monthlyPaymentCents)}/mo · paid off {d.payoffDate ? monthLabel(d.payoffDate) : '—'}
                       {` (${monthsLabel(d.payoffMonths)})`} · {money(-(d.totalInterestCents ?? 0))} interest
                       {d.rateVariableFrom && d.variableRateBps != null && (
-                        <span className="block text-[11px] text-slate-500">Assumes the payment stays fixed; your bank may raise it at each rate reset instead.</span>
+                        <span className="block text-[11px] text-slate-500">
+                          {d.paymentAfterChangeCents != null
+                            ? `Term held to ${d.termEndMonth ? monthLabel(d.termEndMonth) : '—'}: payment becomes ${money(d.paymentAfterChangeCents)}/mo at the reset.`
+                            : 'Assumes the payment stays fixed, so the term drifts. Set the loan end month to model a re-levelled payment instead.'}
+                        </span>
                       )}
                     </p>
                   )

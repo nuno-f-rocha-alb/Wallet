@@ -1,7 +1,7 @@
 # Handoff — Wallet
 
 ## Where things stand
-- **Branch**: `flow/wallet` (also fast-forwarded into `main`). No git remote yet.
+- **Branch**: `main` (== `flow/wallet`). Remote: **private** `nuno-f-rocha-alb/Wallet`.
 - **Full spec**: [`specs/wallet.md`](specs/wallet.md) — all 7 phases, decisions fixed.
 - **Gate record**: [`reviews/wallet.md`](reviews/wallet.md). **Journal**: [`journal.md`](journal.md).
 
@@ -30,24 +30,13 @@
   transaction + receipt image (user-scoped SQLite BLOB, migration v7). Smoke-tested in-browser.
   Also fixed the dark native `<select>` popup on Windows Chromium. CodeRabbit 0 findings.
 
-## Phase 6 — statistics & data portability (COMMITTED on `flow/wallet`, NOT yet on `main`)
-Built this session (journal `§7`). Gate: typecheck/lint/**42 tests**/build/`docker compose build`
-all green; live-verified (`/api/stats`, `/api/export[.csv]`, `/api/import/backup`). **CodeRabbit
-0 findings** (fixed 1 critical + 1 major: SQL-injection via untrusted backup column keys →
-schema-derived column whitelist + zod envelope validation + regression test).
-- `server/src/stats.ts` (+ test): pure FY/rate math + `getStats` (trend, FY + prev-FY YoY, FY
-  category breakdown; honors per-user `fy_start_month`).
-- `server/src/backup.ts` (+ test): generic JSON export/import over all 9 user tables (ids
-  preserved, receipts base64; import wipes+restores under `defer_foreign_keys`), CSV export.
-- Routes `GET /api/stats`, `GET /api/export`(+`.csv`), `POST /api/import/backup`.
-- `web`: `Stats.tsx` (6th tab: FY tiles, net-by-month bars, expense breakdown); Manage **Data**
-  section (Export JSON/CSV, Restore w/ confirm).
-- **Deferred** (not in the objective gate, surfaced): investment tracking + debt/payoff tracker.
-
-### To finish Phase 6
-1. CodeRabbit clean (re-run pending) → fix Critical/relevant.
-2. **Merge to `main`**: `git switch main && git merge --ff-only flow/wallet`.
-3. Decide on the deferred investments + debt tracker (own phase if wanted).
+- **Phase 6 — statistics & data portability** ✅ PASSED, MERGED `@ d496bb0` (`journal.md §7`).
+  `stats.ts` (trend, FY + prev-FY YoY, category breakdown; honors `fy_start_month`) and
+  `backup.ts` (JSON export/import over all user tables, ids preserved; CSV export). Stats tab +
+  Manage **Data** section. CodeRabbit found a **SQL injection** (INSERT column names built from
+  untrusted backup keys) → schema-derived column whitelist + zod envelope + regression test.
+- **Debt tracker** ✅ MERGED `@ 21aeb87` (`journal.md §8`) — see below.
+- **Deferred backlog + repo/CI** ✅ (`journal.md §9`) — see below.
 
 ## Phase 4 — bank import (MERGED to `main` @ `a442c6e`)
 Built this session (journal `§5`), gate green (typecheck/lint/**29 tests**/build), **CodeRabbit
@@ -72,17 +61,29 @@ Loans are accounts (`loan`/`credit_card`) with terms: migration **v8** (`interes
 switch, for PT mortgages that go Euribor-linked). `shared/debt.ts` `amortize` (pure, tested)
 simulates month-by-month honoring the switch; `GET /api/debt`; Plan tab **Debts** section;
 AccountForm gains rate/payment + a collapsible variable-rate section. **CodeRabbit 0 findings**
-after 4 iterations. Projection **assumes the payment stays fixed** (real PT lenders hold the term
-and raise the prestação at each reset) — labelled in the UI; payment-recalc model deferred.
+after 4 iterations. Migration **v10** adds `term_end_month`: set it and a rate reset **re-levels
+the payment** over the months left (what PT lenders do), landing on the contractual month; leave
+it blank to project a fixed payment with a drifting term. Both modes are labelled in the UI.
 
-## Next (after Phase 6)
-All 7 spec phases (0–6) built, plus the debt tracker. Remaining, all **deferred**:
-- **Investments** (buys/sells, realized P/L, DCA) — Phase 6 narrative, cut from the objective
-  gate; a new-table subsystem.
-- Debt: **payment-recalculation** model at each variable-rate reset (holds term, adjusts payment).
-- Spec's Deferred list: household sharing, offline writes, cloud OCR, multi-currency FX.
-- Odds & ends: self-host Tesseract assets (+CSP); receipt thumbnail on the tx row; generic CSV
-  bank import; opening-balance regex on the real CGD layout.
+## Repo & CI (journal `§9`)
+**Private** GitHub repo `nuno-f-rocha-alb/Wallet` (remote `origin`). `.github/workflows/ci.yml`:
+gate (typecheck/lint/test/build) → build & push image to **ghcr.io/nuno-f-rocha-alb/wallet**
+(`latest`, `sha-<short>`, semver on `v*` tags). PRs run the gate only. First run green.
+- ⚠️ **Pre-scrub commits still contain a real NIB + balance** (fixed in the working tree, journal
+  `§9`). Fine while private — **rewrite history before ever making it public**.
+- `npm run build` now runs `fetch:ocr` first (downloads ~18 MB of traineddata); the Docker build
+  bakes them in. `web/public/tesseract/` is gitignored.
+
+## Next
+All 7 spec phases, the debt tracker, and the whole deferred backlog (payment recalc, receipt
+thumbnails, generic CSV import, self-hosted OCR + CSP) are **done and merged**.
+
+**Not planned** (owner's call): **investments** (buys/sells, realized P/L, DCA) — "keep it in
+backup", i.e. an idea on file, not scheduled.
+
+**Still deferred** from the spec: household sharing, offline writes, cloud AI OCR, multi-currency FX.
+
+**Nice-to-haves**: per-bank CSV mapping memory; more PDF bank parsers; receipt lightbox.
 
 ## Gate commands (must pass before a phase lands)
 ```
@@ -94,9 +95,9 @@ wsl -d Debian -e sh -lc "cd /mnt/c/Users/nunob/Repositorios/Wallet && coderabbit
 
 ## Resume line
 Open a new session in this repo, say **resume flow**; read `handoff.md` +
-`specs/wallet.md` + the `journal.md` tail. **All 7 phases (0–6) + the debt tracker are built,
-CodeRabbit-clean and merged to `main`.** Only deferred work remains (investments; debt
-payment-recalc model; the spec's Deferred list).
+`specs/wallet.md` + the `journal.md` tail. **Everything is built, CodeRabbit-clean and merged to `main`,
+and pushed to a private GitHub repo with CI publishing a GHCR image on push.** Only the spec's
+Deferred list and the (unwanted) investments module remain.
 
 ## Gotchas (this machine)
 - Node 25 local; `node:sqlite` loaded via `createRequire` so Vite/vitest don't choke.

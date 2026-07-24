@@ -13,3 +13,6 @@ dev.db-*
 *.db
 *.db-shm
 *.db-wal
+
+# Vendored OCR runtime (fetched by scripts/fetch-ocr-assets.mjs, ~18 MB)
+web/public/tesseract/

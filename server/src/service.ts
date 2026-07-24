@@ -29,6 +29,7 @@ function toAccount(r: Row): Account {
     monthlyPaymentCents: (r.monthly_payment_cents as number | null) ?? null,
     rateVariableFrom: (r.rate_variable_from as string | null) ?? null,
     variableRateBps: (r.variable_rate_bps as number | null) ?? null,
+    termEndMonth: (r.term_end_month as string | null) ?? null,
     ...(r.balance_cents !== undefined ? { balanceCents: r.balance_cents as number } : {}),
   };
 }
@@ -55,6 +56,7 @@ function toTransaction(r: Row): Transaction {
     note: (r.note as string | null) ?? null,
     source: r.source as Transaction['source'],
     transferId: (r.transfer_id as number | null) ?? null,
+    ...(r.has_receipt !== undefined ? { hasReceipt: !!r.has_receipt } : {}),
   };
 }
 function toTransfer(r: Row): Transfer {
@@ -109,8 +111,8 @@ export function listAccounts(db: DatabaseSync, userId: number): Account[] {
 export function createAccount(db: DatabaseSync, userId: number, input: Omit<Account, 'id' | 'archived' | 'balanceCents'>): Account {
   const info = db
     .prepare(
-      `INSERT INTO accounts(user_id,name,type,currency,opening_balance_cents,credit_limit_cents,sort,interest_rate_bps,monthly_payment_cents,rate_variable_from,variable_rate_bps)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO accounts(user_id,name,type,currency,opening_balance_cents,credit_limit_cents,sort,interest_rate_bps,monthly_payment_cents,rate_variable_from,variable_rate_bps,term_end_month)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       userId,
@@ -124,6 +126,7 @@ export function createAccount(db: DatabaseSync, userId: number, input: Omit<Acco
       input.monthlyPaymentCents,
       input.rateVariableFrom,
       input.variableRateBps,
+      input.termEndMonth,
     );
   return getAccount(db, userId, Number(info.lastInsertRowid));
 }
@@ -153,6 +156,7 @@ const ACCOUNT_COLS = {
   monthlyPaymentCents: 'monthly_payment_cents',
   rateVariableFrom: 'rate_variable_from',
   variableRateBps: 'variable_rate_bps',
+  termEndMonth: 'term_end_month',
 };
 
 export function updateAccount(db: DatabaseSync, userId: number, id: number, patch: Record<string, unknown>): Account {
@@ -248,23 +252,28 @@ export interface TxFilters {
 }
 
 export function listTransactions(db: DatabaseSync, userId: number, f: TxFilters): Transaction[] {
-  const where = ['user_id = ?'];
+  // Columns are qualified with the `t` alias up front — the receipts EXISTS sub-select below
+  // introduces a second table, so bare column names would be ambiguous.
+  const where = ['t.user_id = ?'];
   const vals: (string | number)[] = [userId];
   if (f.month) {
-    where.push('substr(date,1,7) = ?');
+    where.push('substr(t.date,1,7) = ?');
     vals.push(f.month);
   }
   if (f.accountId) {
-    where.push('account_id = ?');
+    where.push('t.account_id = ?');
     vals.push(f.accountId);
   }
   if (f.categoryId) {
-    where.push('category_id = ?');
+    where.push('t.category_id = ?');
     vals.push(f.categoryId);
   }
   vals.push(f.limit);
   const r = db
-    .prepare(`SELECT * FROM transactions WHERE ${where.join(' AND ')} ORDER BY date DESC, id DESC LIMIT ?`)
+    .prepare(
+      `SELECT t.*, EXISTS(SELECT 1 FROM receipts rc WHERE rc.transaction_id = t.id AND rc.user_id = t.user_id) AS has_receipt
+       FROM transactions t WHERE ${where.join(' AND ')} ORDER BY t.date DESC, t.id DESC LIMIT ?`,
+    )
     .all(...vals);
   return rows<Row>(r).map(toTransaction);
 }

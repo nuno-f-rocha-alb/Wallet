@@ -19,14 +19,23 @@ async function downscale(file: File, max = 1600): Promise<string> {
   return canvas.toDataURL('image/jpeg', 0.7);
 }
 
-/**
- * Image → OCR text, on-device. ponytail: tesseract.js fetches its worker/core/lang from
- * its CDN by default. For strict offline, vendor por/eng *.traineddata and set
- * langPath/workerPath/corePath here — no user data ever leaves either way.
- */
+// Self-hosted Tesseract runtime (see scripts/fetch-ocr-assets.mjs). Pointing these at our own
+// origin keeps OCR fully on-device — no CDN fetch — and lets the CSP stay `self`-only.
+const OCR_ASSETS = {
+  workerPath: '/tesseract/worker.min.js',
+  corePath: '/tesseract/',
+  langPath: '/tesseract/lang',
+  // Models are vendored uncompressed (official tessdata_fast), so don't look for `.gz`.
+  gzip: false,
+  // Load the worker directly from our origin instead of wrapping it in a blob: URL.
+  workerBlobURL: false,
+} as const;
+
+/** Image → OCR text, fully on-device (assets served from this origin, nothing leaves). */
 export async function imageToText(file: File, onProgress?: (p: number) => void): Promise<OcrResult> {
   const dataUrl = await downscale(file);
   const { data } = await Tesseract.recognize(dataUrl, 'por+eng', {
+    ...OCR_ASSETS,
     logger: (m) => {
       if (m.status === 'recognizing text') onProgress?.(m.progress);
     },

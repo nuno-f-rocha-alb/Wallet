@@ -352,3 +352,57 @@ the car-credit projection reconciled with the lender's own "Montante Total Imput
 
 **Deferred**: payment-recalculation model (bank recalcs the prestação at each reset to hold the
 term) — current model holds the payment and extends the term, labelled in the UI.
+
+---
+
+## §9 — Deferred backlog cleared + GitHub repo & CI
+
+**What**: everything still deferred except investment tracking (owner: "keep it in backup"),
+plus a private GitHub repo and a pipeline that publishes a container image on push.
+
+**Privacy fix first (found before any push)**: the CGD test fixture's NIB embedded the owner's
+**real account number** and a `ptToCents` case used a **real balance**; the journal recorded real
+loan figures. All replaced with synthetic values. Note the pre-scrub commits still carry them —
+acceptable for a **private** repo; history must be rewritten before it ever goes public.
+
+**Debt — payment recalculation (`holdTermTo`)**: real PT lenders keep the term and re-level the
+prestação at each reset; the old model held the payment and let the term drift. Migration **v10**
+adds `term_end_month`; when set, `amortize` recomputes the payment at the switch via the standard
+annuity (`annuityPayment`, **ceil** — rounding down leaves cents outstanding and spills an extra
+month past the contractual end). Also fixed an off-by-one: month index 0 is now the *next*
+payment, so `payoffDate = firstPaymentMonth + payoffMonths - 1` and a term-held loan lands exactly
+on its contractual month. Verified end-to-end: the owner's mortgage lands on its real end month
+with the payment re-levelling upward at the 2027 reset and total interest dropping accordingly.
+
+**Receipt thumbnail**: `listTransactions` now returns `hasReceipt` via an `EXISTS` sub-select
+(columns qualified with the `t` alias — a second table makes bare names ambiguous); the row
+renders a lazy 36px thumbnail from `/api/receipts/by-tx/:id/image`.
+
+**Generic CSV import** (`shared/csv.ts`, `shared/money.ts`, tested): RFC4180-ish `parseCsv`
+(quotes, doubled quotes, CRLF, auto `;`/`,`/tab), `guessMapping` from header hints, `toIsoDate`
+(ISO + day-first, calendar-validated), `parseAmountCell` (PT/EN separators, trailing/leading
+minus, parentheses, whole units). `parseMoney` moved to `money.ts` and re-exported from
+`receipt.ts` so both importers share one money parser. ImportFlow gained a **map** step: pick the
+date/amount/description columns (pre-guessed), optional sign flip, live preview of the first
+rows — then the existing dedup/preview/commit/revert pipeline, committed with `source:'csv'`.
+Verified: preview → commit → re-import shows **all duplicates** → revert.
+
+**Self-hosted OCR + CSP**: `scripts/fetch-ocr-assets.mjs` vendors the Tesseract worker + wasm core
+from node_modules and downloads `eng`/`por` traineddata into `web/public/tesseract` (gitignored,
+~18 MB; wired into `npm run build`, so the Docker build bakes it in). `ocr.ts` points
+`workerPath`/`corePath`/`langPath` at our own origin with `workerBlobURL: false` — **no CDN call**.
+Fastify now sends a strict CSP (`default-src 'self'`, `wasm-unsafe-eval` for the wasm,
+`blob:` for workers/previews) plus nosniff/no-referrer. The wasm is excluded from the PWA
+precache (25 MB ≫ the 2 MB limit) and runtime-cached `CacheFirst` instead, so OCR still works
+offline after one scan. ESLint ignores the vendored bundles.
+
+**Repo & CI**: private `nuno-f-rocha-alb/Wallet`. `.github/workflows/ci.yml` runs the gate
+(typecheck/lint/test/build) and only then builds and pushes a multi-arch-capable image to
+**ghcr.io** with buildx + GHA layer cache, tagged `latest`/`sha-<short>`/semver on tags. PRs run
+the gate but never publish. First run: **green end-to-end**, image pushed.
+
+**Gate**: typecheck ✓ · lint ✓ · vitest **61/61** (+7 csv, +2 debt recalc/annuity) ✓ · build ✓ ·
+`docker compose build` ✓ · live-verified CSP + same-origin OCR assets + CSV round trip.
+**Not verified by me**: the in-browser receipt scan against the self-hosted assets — no file-upload
+on this surface. Flagged for a manual check; the CDN fallback is gone, so if the assets 404 the
+scan fails loudly rather than silently phoning home.

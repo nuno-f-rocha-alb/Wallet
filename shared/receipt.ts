@@ -1,6 +1,10 @@
+import { parseMoney } from './money.js';
+
 // Receipt OCR-text → {total, date, merchant} heuristics. Pure (no DOM, no Tesseract),
 // so the browser (after OCR produces text) and vitest both import this. QR path dropped
 // (spec 2026-07-23): the PT AT QR carries no line items, only totals OCR already reads.
+
+export { parseMoney };
 
 export interface ReceiptParse {
   totalCents: number | null; // IVA-inclusive grand total (what was paid)
@@ -8,14 +12,6 @@ export interface ReceiptParse {
   merchant: string | null; // shop name for the description, or null → blank
 }
 
-/** A single money token ("1.234,56" / "12,34" / "12.34" / "1,234.56") → integer cents. */
-export function parseMoney(raw: string): number | null {
-  const s = raw.replace(/[^\d.,]/g, '');
-  // int part (optionally with thousands separators) + a 2-digit decimal group.
-  const m = s.match(/^(\d{1,3}(?:[.,]\d{3})+|\d+)([.,]\d{2})$/);
-  if (!m) return null;
-  return Number(m[1].replace(/[.,]/g, '')) * 100 + Number(m[2].slice(1));
-}
 
 // Every money-looking token on a line; each is validated by parseMoney.
 const MONEY_TOKEN = /\d[\d.,]*[.,]\d{2}/g;

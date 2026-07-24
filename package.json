@@ -5,15 +5,20 @@
   "engines": {
     "node": ">=24"
   },
-  "workspaces": ["shared", "server", "web"],
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
   "scripts": {
     "dev:server": "npm run dev -w server",
     "dev:web": "npm run dev -w web",
-    "build": "npm run build -w web && npm run build -w server",
+    "build": "npm run fetch:ocr && npm run build -w web && npm run build -w server",
     "typecheck": "tsc --noEmit -p shared/tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p web/tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "start": "node server/dist/index.js"
+    "start": "node server/dist/index.js",
+    "fetch:ocr": "node scripts/fetch-ocr-assets.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

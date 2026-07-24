@@ -21,10 +21,15 @@ const accountBase = z.object({
   monthlyPaymentCents: cents.nonnegative().nullable().default(null),
   rateVariableFrom: z
     .string()
-    .regex(/^\d{4}-\d{2}$/, 'expected YYYY-MM')
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'expected YYYY-MM')
     .nullable()
     .default(null),
   variableRateBps: cents.nonnegative().max(1_000_000).nullable().default(null),
+  termEndMonth: z
+    .string()
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'expected YYYY-MM')
+    .nullable()
+    .default(null),
 });
 
 // A rate switch needs BOTH the month and the rate — half of it would be silently ignored by
@@ -74,7 +79,7 @@ export const transferCreate = z
 export const dashboardQuery = z.object({
   month: z
     .string()
-    .regex(/^\d{4}-\d{2}$/, 'expected YYYY-MM')
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'expected YYYY-MM')
     .default(() => new Date().toISOString().slice(0, 7)),
 });
 
@@ -181,7 +186,7 @@ export const backupImport = z.object({
 });
 
 export const txListQuery = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
   accountId: z.coerce.number().int().positive().optional(),
   categoryId: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(500).default(200),

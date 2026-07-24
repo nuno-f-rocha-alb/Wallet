@@ -19,6 +19,14 @@
     "./debt": {
       "types": "./debt.ts",
       "import": "./debt.ts"
+    },
+    "./money": {
+      "types": "./money.ts",
+      "import": "./money.ts"
+    },
+    "./csv": {
+      "types": "./csv.ts",
+      "import": "./csv.ts"
     }
   }
 }
