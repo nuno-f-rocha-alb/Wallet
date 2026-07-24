@@ -406,3 +406,22 @@ the gate but never publish. First run: **green end-to-end**, image pushed.
 **Not verified by me**: the in-browser receipt scan against the self-hosted assets — no file-upload
 on this surface. Flagged for a manual check; the CDN fallback is gone, so if the assets 404 the
 scan fails loudly rather than silently phoning home.
+
+
+---
+
+## §10 — History purge + public release
+
+Owner confirmed the receipt scan works on localhost, and asked to make the repo public. Before
+flipping visibility, purged the real financial data that lived in **pre-scrub commits** (the
+working tree was already clean since §9): the CGD fixture's NIB embedded the owner's real account
+number, and a `ptToCents` test used the real mortgage balance; one journal line held the car
+capital/interest.
+
+`git filter-repo --replace-text` mapped each real literal to a synthetic one across **all**
+history (NIB → a clearly-fake NIB, real balance → 12.345,67, car figures → placeholders). Verified
+zero occurrences of every sensitive literal remain in any commit. Remapped the commit-SHA
+references in `journal.md`/`handoff.md` via filter-repo's commit-map so the audit trail still
+resolves. Backed up the pre-purge history to `scratchpad/wallet-pre-purge.bundle` first. Re-added
+`origin`, force-pushed, then set the repo public. All prior clones/backups still hold the old
+history — but only this machine had one.

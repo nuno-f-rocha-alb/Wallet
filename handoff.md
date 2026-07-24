@@ -1,7 +1,7 @@
 # Handoff — Wallet
 
 ## Where things stand
-- **Branch**: `main` (== `flow/wallet`). Remote: **private** `nuno-f-rocha-alb/Wallet`.
+- **Branch**: `main`. Remote: **public** `nuno-f-rocha-alb/Wallet` (history rewritten — SHAs differ from any pre-purge clone).
 - **Full spec**: [`specs/wallet.md`](specs/wallet.md) — all 7 phases, decisions fixed.
 - **Gate record**: [`reviews/wallet.md`](reviews/wallet.md). **Journal**: [`journal.md`](journal.md).
 
@@ -23,22 +23,22 @@
   yearly), `projectForecast` (rules + 6-mo avg, no double-count), `detectRecurring`.
   Idempotent auto-post (external_ref `recur:<id>:<date>` + `last_posted_date`), fires on app
   open. Plan tab (5th): forecast bars, suggestions w/ prefill, upcoming, rules. 20/20 tests.
-- **Phase 4 — bank import (PDF)** ✅ PASSED, MERGED `@ a442c6e` (`journal.md §5`). `bank.ts`
+- **Phase 4 — bank import (PDF)** ✅ PASSED, MERGED `@ 4e89373` (`journal.md §5`). `bank.ts`
   (dedup index; CGD parser, PDF-only; merchant memory; reversible batch), migration v6.
-- **Phase 5 — receipt capture (photo + OCR)** ✅ PASSED, MERGED `@ 9722340` (`journal.md §6`).
+- **Phase 5 — receipt capture (photo + OCR)** ✅ PASSED, MERGED `@ 19c0af6` (`journal.md §6`).
   On-device Tesseract → pure `parseReceipt` (IVA-incl. total/date/merchant) → confirmed draft →
   transaction + receipt image (user-scoped SQLite BLOB, migration v7). Smoke-tested in-browser.
   Also fixed the dark native `<select>` popup on Windows Chromium. CodeRabbit 0 findings.
 
-- **Phase 6 — statistics & data portability** ✅ PASSED, MERGED `@ d496bb0` (`journal.md §7`).
+- **Phase 6 — statistics & data portability** ✅ PASSED, MERGED `@ af38e4f` (`journal.md §7`).
   `stats.ts` (trend, FY + prev-FY YoY, category breakdown; honors `fy_start_month`) and
   `backup.ts` (JSON export/import over all user tables, ids preserved; CSV export). Stats tab +
   Manage **Data** section. CodeRabbit found a **SQL injection** (INSERT column names built from
   untrusted backup keys) → schema-derived column whitelist + zod envelope + regression test.
-- **Debt tracker** ✅ MERGED `@ 21aeb87` (`journal.md §8`) — see below.
+- **Debt tracker** ✅ MERGED `@ 0e6f4e3` (`journal.md §8`) — see below.
 - **Deferred backlog + repo/CI** ✅ (`journal.md §9`) — see below.
 
-## Phase 4 — bank import (MERGED to `main` @ `a442c6e`)
+## Phase 4 — bank import (MERGED to `main` @ `4e89373`)
 Built this session (journal `§5`), gate green (typecheck/lint/**29 tests**/build), **CodeRabbit
 0 findings** (2 major + 2 minor fixed: category-ownership validation, O(n) dedup index,
 IBAN/spaced-NIB ref, pdf.js `doc.destroy`). Committed but **held back from `main`** pending the
@@ -69,23 +69,16 @@ it blank to project a fixed payment with a drifting term. Both modes are labelle
 **Private** GitHub repo `nuno-f-rocha-alb/Wallet` (remote `origin`). `.github/workflows/ci.yml`:
 gate (typecheck/lint/test/build) → build & push image to **ghcr.io/nuno-f-rocha-alb/wallet**
 (`latest`, `sha-<short>`, semver on `v*` tags). PRs run the gate only. First run green.
-- ⚠️ **Pre-scrub commits still contain a real NIB + balance** (fixed in the working tree, journal
-  `§9`). Fine while private — **rewrite history before ever making it public**.
-- `npm run build` now runs `fetch:ocr` first (downloads ~18 MB of traineddata); the Docker build
-  bakes them in. `web/public/tesseract/` is gitignored.
-
-## Outstanding delivery item
-- ⏳ **Manual browser smoke test: receipt scan against the self-hosted OCR assets.** Everything
-  else is verified, but the in-browser camera→OCR→confirm round trip has NOT been re-run since
-  the models moved from the tesseract.js CDN to vendored, uncompressed `tessdata_fast` served
-  same-origin under the new CSP. No `file_upload` on the agent surface. If the assets are wrong
-  it fails loudly (the CDN fallback is gone by design). If accuracy regresses, switch the fetch
-  script to `tessdata_best`.
+- ✅ **History purged** (journal `§10`): `git filter-repo --replace-text` scrubbed the real NIB +
+  balance from every commit, SHAs remapped, force-pushed. Repo is now **public**. The pre-purge
+  history is backed up at `scratchpad/wallet-pre-purge.bundle`.
+- `npm run build` runs `fetch:ocr` first (downloads ~6 MB of official, SHA-256-pinned traineddata);
+  the Docker build bakes them in. `web/public/tesseract/` is gitignored.
 
 ## Next
 All 7 spec phases, the debt tracker, and the whole deferred backlog (payment recalc, receipt
-thumbnails, generic CSV import, self-hosted OCR + CSP) are **done and merged** (pending the smoke
-test above).
+thumbnails, generic CSV import, self-hosted OCR + CSP) are **done and merged**. Receipt scan
+against the self-hosted assets was smoke-tested by the owner on localhost — works. Repo is public.
 
 **Not planned** (owner's call): **investments** (buys/sells, realized P/L, DCA) — "keep it in
 backup", i.e. an idea on file, not scheduled.
@@ -105,10 +98,9 @@ wsl -d Debian -e sh -lc "cd /mnt/c/Users/nunob/Repositorios/Wallet && coderabbit
 ## Resume line
 Open a new session in this repo, say **resume flow**; read `handoff.md` +
 `specs/wallet.md` + the `journal.md` tail. **Everything is built, CodeRabbit-clean and merged to
-`main`, and pushed to a private GitHub repo with CI publishing a GHCR image on push.** Two open
-items: (1) the **receipt-scan smoke test** against the self-hosted OCR assets, and (2) the
-**history scrub** decision (real NIB in pre-scrub commits). Then only the spec's Deferred list and
-the (unwanted) investments module remain.
+`main`, pushed to a **public** GitHub repo with CI publishing a GHCR image on push, and git
+history scrubbed of real financial data.** Only the spec's Deferred list and the (unwanted)
+investments module remain.
 
 ## Gotchas (this machine)
 - Node 25 local; `node:sqlite` loaded via `createRequire` so Vite/vitest don't choke.
