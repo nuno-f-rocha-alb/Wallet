@@ -216,3 +216,28 @@ test('category rules: a rule pre-fills the import category and beats merchant me
   // deletion actually removed it, not just returned 204
   expect(((await req('GET', '/api/category-rules', alice)).json() as { pattern: string }[]).some((r) => r.pattern === 'IKEA')).toBe(false);
 });
+
+const suggest = async (description: string) =>
+  ((await req('GET', '/api/suggest-category?description=' + encodeURIComponent(description), alice)).json() as { categoryId: number | null }).categoryId;
+
+test('GET /api/suggest-category serves receipt/manual entry from rules + user-wide history', async () => {
+  const a1 = (await req('POST', '/api/accounts', alice, { name: 'Bank4a', type: 'bank' })).json() as Account;
+  const a2 = (await req('POST', '/api/accounts', alice, { name: 'Bank4b', type: 'bank' })).json() as Account;
+  const cats = (await req('GET', '/api/categories', alice)).json() as Category[];
+  const eatingOut = cats.find((c) => c.name === 'Eating out')!.id;
+  const fuel = cats.find((c) => c.name === 'Fuel')!.id;
+
+  // history lives in one account; the suggestion is user-wide, so it applies with no account context
+  await req('POST', '/api/transactions', alice, { date: '2026-02-01', amountCents: -1500, accountId: a1.id, categoryId: eatingOut, description: 'MCDONALDS LISBOA' });
+  expect(await suggest('MCDONALDS PORTO')).toBe(eatingOut); // generalized across the tail, any account
+
+  // a *conflicting* history in another account: GALP was categorized Eating out before…
+  await req('POST', '/api/transactions', alice, { date: '2026-02-02', amountCents: -6000, accountId: a2.id, categoryId: eatingOut, description: 'PAG GALP ENERGIA' });
+  expect(await suggest('PAG GALP ENERGIA')).toBe(eatingOut); // history alone → Eating out
+  // …but a rule maps GALP → Fuel, and rules override learned history
+  await req('POST', '/api/category-rules', alice, { pattern: 'GALP', categoryId: fuel });
+  expect(await suggest('PAG GALP ENERGIA')).toBe(fuel);
+
+  // nothing to go on → null
+  expect(await suggest('zzzz')).toBeNull();
+});

@@ -61,6 +61,13 @@ export function registerRoutes(app: FastifyInstance): void {
     return reply.code(204).send();
   });
 
+  // Category suggestion for a free-text description (receipts, manual entry).
+  app.get('/api/suggest-category', async (req) => {
+    const userId = uid(req); // authenticate first, unconditionally
+    const { description } = S.suggestCategoryQuery.parse(req.query);
+    return { categoryId: bank.suggestCategoryForUser(getDb(), userId, description) };
+  });
+
   // ---- category rules (auto-categorize imports) ----
   app.get('/api/category-rules', async (req) => svc.listCategoryRules(getDb(), uid(req)));
   app.post('/api/category-rules', async (req, reply) => {

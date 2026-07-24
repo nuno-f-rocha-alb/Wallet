@@ -178,6 +178,26 @@ function categoryRulesFor(db: DatabaseSync, userId: number): CategoryRuleLite[] 
   ).map((r) => ({ pattern: r.pattern as string, categoryId: r.category_id as number }));
 }
 
+/**
+ * Suggest a category for a free-text description across ALL the user's history (not one account) —
+ * used by receipt capture and manual entry. Same precedence as import: keyword rule, then the
+ * most-used category for a similar merchant. Null when nothing is confident enough.
+ */
+export function suggestCategoryForUser(db: DatabaseSync, userId: number, description: string): number | null {
+  const ruleHit = matchCategoryRule(categoryRulesFor(db, userId), description);
+  if (ruleHit !== null) return ruleHit;
+  const existing = rows<Row>(
+    db.prepare('SELECT description, category_id FROM transactions WHERE user_id=? AND category_id IS NOT NULL').all(userId),
+  ).map((r) => ({
+    date: '',
+    amountCents: 0,
+    externalRef: null,
+    description: r.description as string,
+    categoryId: r.category_id as number,
+  }));
+  return suggestCategory(existing, description);
+}
+
 export function previewImport(db: DatabaseSync, userId: number, accountId: number, parsed: ParsedRow[]): ImportPreview {
   assertAccount(db, userId, accountId);
   const existing = existingFor(db, userId, accountId);

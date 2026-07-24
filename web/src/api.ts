@@ -136,6 +136,13 @@ export function useDeleteCategory() {
   });
 }
 
+/** Best-guess category for a free-text description (rules + merchant memory), or null. */
+export async function fetchSuggestedCategory(description: string): Promise<number | null> {
+  if (!description.trim()) return null;
+  const r = await api<{ categoryId: number | null }>(`/suggest-category?description=${encodeURIComponent(description)}`);
+  return r.categoryId;
+}
+
 // ---- category rules ----
 
 export const useCategoryRules = () =>

@@ -52,6 +52,8 @@ export const categoryCreate = z.object({
 });
 export const categoryUpdate = categoryCreate.partial();
 
+export const suggestCategoryQuery = z.object({ description: z.string().trim().min(1).max(200) });
+
 export const categoryRuleCreate = z.object({
   pattern: z.string().trim().min(1).max(100),
   categoryId: z.number().int().positive(),

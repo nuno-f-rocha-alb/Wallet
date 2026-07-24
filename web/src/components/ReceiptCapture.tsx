@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Account, Category } from '@wallet/shared';
 import { parseReceipt, type ReceiptParse } from '@wallet/shared/receipt';
-import { useCreateReceipt } from '../api';
+import { fetchSuggestedCategory, useCreateReceipt } from '../api';
 import { imageToText, dataUrlToBase64 } from '../lib/ocr';
 import { todayISO, toCents } from '../format';
 import { btnGhost, btnPrimary, input, label } from './ui';
@@ -48,7 +48,16 @@ export function ReceiptCapture({
       setParsed(p);
       if (p.totalCents !== null) setAmount((p.totalCents / 100).toFixed(2));
       if (p.date) setDate(p.date);
-      if (p.merchant) setDescription(p.merchant);
+      if (p.merchant) {
+        setDescription(p.merchant);
+        // Best-effort: suggest a category from the merchant without blocking the draft. A failure
+        // must not fail the scan, and it only fills a still-blank category.
+        void fetchSuggestedCategory(p.merchant)
+          .then((cat) => {
+            if (cat !== null) setCategoryId((cur) => (cur === '' ? cat : cur));
+          })
+          .catch(() => {});
+      }
       setStep('confirm');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read the image.');

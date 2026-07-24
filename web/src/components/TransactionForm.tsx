@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Account, Category, Transaction } from '@wallet/shared';
-import { useDeleteTransaction, useSaveTransaction } from '../api';
+import { fetchSuggestedCategory, useDeleteTransaction, useSaveTransaction } from '../api';
 import { todayISO, toCents } from '../format';
 import { btnDanger, btnGhost, btnPrimary, input, label } from './ui';
 
@@ -25,6 +25,21 @@ export function TransactionForm({
   const [categoryId, setCategoryId] = useState<number | ''>(tx?.categoryId ?? '');
   const [date, setDate] = useState(tx?.date ?? todayISO());
   const [description, setDescription] = useState(tx?.description ?? '');
+
+  // On a new transaction, once the user finishes typing a description, offer a category —
+  // only if they haven't already chosen one (never override an edit or a manual pick).
+  const suggestSeq = useRef(0);
+  async function suggestCategory() {
+    if (editing || categoryId !== '' || !description.trim()) return;
+    const seq = ++suggestSeq.current; // a later edit/blur invalidates this in-flight request
+    try {
+      const cat = await fetchSuggestedCategory(description);
+      // Apply only if this is still the latest request and the user hasn't picked a category since.
+      if (cat !== null && seq === suggestSeq.current) setCategoryId((cur) => (cur === '' ? cat : cur));
+    } catch {
+      /* suggestions are best-effort — a failure must not disrupt entry */
+    }
+  }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,7 +117,7 @@ export function TransactionForm({
 
       <div>
         <label className={label} htmlFor="desc">Description</label>
-        <input id="desc" className={input} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Groceries at Lidl" />
+        <input id="desc" className={input} value={description} onChange={(e) => { setDescription(e.target.value); suggestSeq.current++; }} onBlur={suggestCategory} placeholder="e.g. Groceries at Lidl" />
       </div>
 
       {save.error && <p className="text-sm text-red-600">{save.error.message}</p>}
