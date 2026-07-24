@@ -52,6 +52,12 @@ export const categoryCreate = z.object({
 });
 export const categoryUpdate = categoryCreate.partial();
 
+export const categoryRuleCreate = z.object({
+  pattern: z.string().trim().min(1).max(100),
+  categoryId: z.number().int().positive(),
+  sort: z.number().int().default(0),
+});
+
 export const transactionCreate = z.object({
   date,
   amountCents: cents.refine((v) => v !== 0, 'amount cannot be zero'),

@@ -9,6 +9,7 @@ import type {
   BackupData,
   CarStatsResponse,
   Category,
+  CategoryRule,
   CommitResult,
   DashboardResponse,
   DebtSummary,
@@ -130,7 +131,29 @@ export function useDeleteCategory() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['categories'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['categoryRules'] }); // deleting a category cascades its rules
     },
+  });
+}
+
+// ---- category rules ----
+
+export const useCategoryRules = () =>
+  useQuery({ queryKey: ['categoryRules'], queryFn: () => api<CategoryRule[]>('/category-rules') });
+
+export function useSaveCategoryRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (r: { pattern: string; categoryId: number }) => api<CategoryRule>('/category-rules', jsonBody(r)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['categoryRules'] }),
+  });
+}
+
+export function useDeleteCategoryRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/category-rules/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['categoryRules'] }),
   });
 }
 

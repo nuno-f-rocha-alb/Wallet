@@ -61,6 +61,17 @@ export function registerRoutes(app: FastifyInstance): void {
     return reply.code(204).send();
   });
 
+  // ---- category rules (auto-categorize imports) ----
+  app.get('/api/category-rules', async (req) => svc.listCategoryRules(getDb(), uid(req)));
+  app.post('/api/category-rules', async (req, reply) => {
+    const r = svc.createCategoryRule(getDb(), uid(req), S.categoryRuleCreate.parse(req.body));
+    return reply.code(201).send(r);
+  });
+  app.delete('/api/category-rules/:id', async (req, reply) => {
+    svc.deleteCategoryRule(getDb(), uid(req), paramId(req));
+    return reply.code(204).send();
+  });
+
   // ---- transactions ----
   app.get('/api/transactions', async (req) =>
     svc.listTransactions(getDb(), uid(req), S.txListQuery.parse(req.query)),

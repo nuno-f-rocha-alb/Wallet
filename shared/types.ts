@@ -53,6 +53,14 @@ export interface Category {
   sort: number;
 }
 
+/** Auto-categorize rule: if an imported description contains `pattern`, suggest `categoryId`. */
+export interface CategoryRule {
+  id: number;
+  pattern: string;
+  categoryId: number;
+  sort: number;
+}
+
 export type TxSource = 'manual' | 'receipt' | 'bank' | 'recurring';
 
 export interface Transaction {

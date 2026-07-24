@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type {
   Account,
   Category,
+  CategoryRule,
   CategoryTotal,
   DashboardResponse,
   Transaction,
@@ -240,6 +241,30 @@ export function deleteCategory(db: DatabaseSync, userId: number, id: number): vo
   db.prepare('UPDATE categories SET parent_id = NULL WHERE parent_id = ? AND user_id = ?').run(id, userId);
   const changes = db.prepare('DELETE FROM categories WHERE id = ? AND user_id = ?').run(id, userId).changes;
   if (changes === 0) throw new HttpError(404, 'category not found');
+}
+
+// ---- category rules (auto-categorize imports) ----
+
+function toCategoryRule(r: Row): CategoryRule {
+  return { id: r.id as number, pattern: r.pattern as string, categoryId: r.category_id as number, sort: r.sort as number };
+}
+
+export function listCategoryRules(db: DatabaseSync, userId: number): CategoryRule[] {
+  return rows<Row>(db.prepare('SELECT * FROM category_rules WHERE user_id=? ORDER BY sort, id').all(userId)).map(toCategoryRule);
+}
+
+export function createCategoryRule(db: DatabaseSync, userId: number, input: { pattern: string; categoryId: number; sort: number }): CategoryRule {
+  if (!db.prepare('SELECT 1 FROM categories WHERE id=? AND user_id=?').get(input.categoryId, userId))
+    throw new HttpError(400, 'category not found');
+  const info = db
+    .prepare('INSERT INTO category_rules(user_id,pattern,category_id,sort) VALUES(?,?,?,?)')
+    .run(userId, input.pattern, input.categoryId, input.sort);
+  return listCategoryRules(db, userId).find((r) => r.id === Number(info.lastInsertRowid))!;
+}
+
+export function deleteCategoryRule(db: DatabaseSync, userId: number, id: number): void {
+  const changes = db.prepare('DELETE FROM category_rules WHERE id=? AND user_id=?').run(id, userId).changes;
+  if (changes === 0) throw new HttpError(404, 'rule not found');
 }
 
 // ---- transactions ----

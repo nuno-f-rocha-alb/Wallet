@@ -256,6 +256,25 @@ const MIGRATIONS: { version: number; sql: string }[] = [
     version: 10,
     sql: `ALTER TABLE accounts ADD COLUMN term_end_month TEXT;`,
   },
+  {
+    // Auto-categorization rules for imports: "description contains <pattern> → this category".
+    // Owner-scoped composite FK so a rule can only target the user's own category, and deleting
+    // that category cascades its rules away.
+    version: 11,
+    sql: `
+      CREATE TABLE category_rules (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     INTEGER NOT NULL REFERENCES users(id),
+        pattern     TEXT NOT NULL,
+        category_id INTEGER NOT NULL,
+        sort        INTEGER NOT NULL DEFAULT 0,
+        created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, id),
+        FOREIGN KEY(user_id, category_id) REFERENCES categories(user_id, id) ON DELETE CASCADE
+      );
+      CREATE INDEX idx_category_rules_user ON category_rules(user_id, sort);
+    `,
+  },
 ];
 
 let _db: DatabaseSync | undefined;

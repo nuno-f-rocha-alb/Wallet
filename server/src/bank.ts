@@ -83,14 +83,21 @@ export function isDuplicate(row: ParsedRow & { externalRef: string }, existing: 
   return dupInIndex(row, buildIndex(existing), windowDays);
 }
 
-/** Merchant memory: the category most often used for this merchant in history. */
-export function suggestCategory(existing: ExistingTx[], description: string): number | null {
-  const norm = normalizeDesc(description);
-  const counts = new Map<number, number>();
-  for (const e of existing) {
-    if (e.categoryId === null || normalizeDesc(e.description) !== norm) continue;
-    counts.set(e.categoryId, (counts.get(e.categoryId) ?? 0) + 1);
-  }
+// Generic banking/payment words that show up across unrelated merchants — ignored so a shared
+// "compras" or "pagamento" can't wrongly link two different shops. (Short tokens are dropped by
+// the length filter, so only ≥4-char noise needs listing here.)
+const STOPWORDS = new Set([
+  'compras', 'compra', 'pagamento', 'pagamentos', 'servico', 'servicos', 'multibanco',
+  'transferencia', 'levantamento', 'unipessoal', 'cartao', 'debito', 'credito',
+]);
+
+/** Distinctive tokens of a description: ≥4 chars, minus generic banking words. */
+function significantTokens(s: string): string[] {
+  return normalizeDesc(s).split(' ').filter((t) => t.length >= 4 && !STOPWORDS.has(t));
+}
+
+/** Pick the most-common category among a tally, or null. */
+function topCategory(counts: Map<number, number>): number | null {
   let best: number | null = null;
   let bestN = 0;
   for (const [cat, n] of counts) {
@@ -100,6 +107,42 @@ export function suggestCategory(existing: ExistingTx[], description: string): nu
     }
   }
   return best;
+}
+
+/**
+ * Merchant memory: the category most often used for a *similar* merchant in history. Matches on
+ * a shared distinctive token rather than exact string equality, so "CONTINENTE LISBOA" and
+ * "CONTINENTE PORTO 4471" categorize together even though the tails differ.
+ */
+export function suggestCategory(existing: ExistingTx[], description: string): number | null {
+  const want = new Set(significantTokens(description));
+  if (want.size === 0) return null;
+  const counts = new Map<number, number>();
+  for (const e of existing) {
+    if (e.categoryId === null) continue;
+    if (significantTokens(e.description).some((t) => want.has(t))) {
+      counts.set(e.categoryId, (counts.get(e.categoryId) ?? 0) + 1);
+    }
+  }
+  return topCategory(counts);
+}
+
+export interface CategoryRuleLite {
+  pattern: string;
+  categoryId: number;
+}
+
+/**
+ * First rule whose (normalized) pattern is contained in the (normalized) description wins.
+ * Caller supplies rules already ordered by priority. Explicit rules beat merchant memory.
+ */
+export function matchCategoryRule(rules: CategoryRuleLite[], description: string): number | null {
+  const hay = normalizeDesc(description);
+  for (const r of rules) {
+    const needle = normalizeDesc(r.pattern);
+    if (needle && hay.includes(needle)) return r.categoryId;
+  }
+  return null;
 }
 
 // ---- db ----
@@ -129,14 +172,22 @@ function existingFor(db: DatabaseSync, userId: number, accountId: number): Exist
   }));
 }
 
+function categoryRulesFor(db: DatabaseSync, userId: number): CategoryRuleLite[] {
+  return rows<Row>(
+    db.prepare('SELECT pattern, category_id FROM category_rules WHERE user_id=? ORDER BY sort, id').all(userId),
+  ).map((r) => ({ pattern: r.pattern as string, categoryId: r.category_id as number }));
+}
+
 export function previewImport(db: DatabaseSync, userId: number, accountId: number, parsed: ParsedRow[]): ImportPreview {
   assertAccount(db, userId, accountId);
   const existing = existingFor(db, userId, accountId);
+  const rules = categoryRulesFor(db, userId);
   const idx = buildIndex(existing);
   const staged: StagedRow[] = assignRefs(parsed).map((r) => ({
     ...r,
     status: dupInIndex(r, idx) ? 'duplicate' : 'new',
-    suggestedCategoryId: suggestCategory(existing, r.description),
+    // Explicit keyword rules take precedence; fall back to learned merchant memory.
+    suggestedCategoryId: matchCategoryRule(rules, r.description) ?? suggestCategory(existing, r.description),
   }));
   return {
     accountId,

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { Account, Category, CommitResult, ImportBatch, ImportPreview, ParsedRow, Transaction } from '@wallet/shared';
-import { assignRefs, isDuplicate, normalizeDesc, suggestCategory, type ExistingTx } from './bank.js';
+import { assignRefs, isDuplicate, matchCategoryRule, normalizeDesc, suggestCategory, type ExistingTx } from './bank.js';
 
 // ---- pure dedup / normalize ----
 
@@ -45,6 +45,32 @@ test('suggestCategory returns the most-used category for a merchant', () => {
   ];
   expect(suggestCategory(existing, 'Lidl')).toBe(3);
   expect(suggestCategory(existing, 'Unknown')).toBeNull();
+});
+
+test('suggestCategory generalizes across a shared merchant token, ignoring generic words', () => {
+  const existing: ExistingTx[] = [
+    { date: '2026-01-01', amountCents: -3000, description: 'COMPRAS CONTINENTE LISBOA', externalRef: null, categoryId: 3 },
+    // a different merchant that only shares the generic word "compras" — must NOT drag its category in
+    { date: '2026-01-02', amountCents: -500, description: 'COMPRAS FARMACIA', externalRef: null, categoryId: 9 },
+  ];
+  // tail differs (PORTO 4471) but "continente" is shared → same category as the learned one
+  expect(suggestCategory(existing, 'CONTINENTE PORTO 4471')).toBe(3);
+  // only "compras" (a stopword) overlaps → no confident suggestion
+  expect(suggestCategory(existing, 'COMPRAS TALHO')).toBeNull();
+});
+
+test('matchCategoryRule: first substring match wins, case/space-insensitive', () => {
+  const rules = [
+    { pattern: 'GALP', categoryId: 11 },
+    { pattern: 'continente', categoryId: 3 },
+  ];
+  expect(matchCategoryRule(rules, 'PAG GALP ENERGIA 12/06')).toBe(11);
+  expect(matchCategoryRule(rules, 'compras continente lisboa')).toBe(3);
+  expect(matchCategoryRule(rules, 'LIDL PORTO')).toBeNull();
+  // order = priority: a broader rule listed first shadows a later one
+  expect(matchCategoryRule([{ pattern: 'galp', categoryId: 99 }, ...rules], 'GALP')).toBe(99);
+  // multi-word pattern matches across collapsed whitespace on both sides
+  expect(matchCategoryRule([{ pattern: 'GALP  ENERGIA', categoryId: 11 }], 'PAG  GALP   ENERGIA  12/06')).toBe(11);
 });
 
 // ---- endpoints: dedup on re-import, merchant memory, reversible batch ----
@@ -158,4 +184,35 @@ test('an overlapping statement inserts only the new rows; merchant memory reappl
     rows: [{ date: '2026-07-01', amountCents: -111, description: 'Xshop', categoryId: bobCat }],
   });
   expect(badCommit.statusCode).toBe(400); // cross-user category → clean 400, not a 500 or a leak
+});
+
+test('category rules: a rule pre-fills the import category and beats merchant memory', async () => {
+  const acct = (await req('POST', '/api/accounts', alice, { name: 'Bank3', type: 'bank' })).json() as Account;
+  const cats = (await req('GET', '/api/categories', alice)).json() as Category[];
+  const groceries = cats.find((c) => c.name === 'Groceries')!.id;
+  const subs = cats.find((c) => c.name === 'Subscriptions')!.id;
+
+  // history alone would say IKEA → Groceries
+  await req('POST', '/api/transactions', alice, { date: '2026-01-05', amountCents: -5000, accountId: acct.id, categoryId: groceries, description: 'IKEA LOJA' });
+
+  // a rule says anything containing IKEA → Subscriptions; the rule must win
+  const created = await req('POST', '/api/category-rules', alice, { pattern: 'IKEA', categoryId: subs });
+  expect(created.statusCode).toBe(201);
+  const ruleId = (created.json() as { id: number }).id;
+
+  const prev = (await req('POST', '/api/import/preview', alice, {
+    accountId: acct.id,
+    rows: [{ date: '2026-08-01', amountCents: -6000, description: 'COMPRAS IKEA PORTO' }],
+  })).json() as ImportPreview;
+  expect(prev.rows[0].suggestedCategoryId).toBe(subs); // rule beats the Groceries history
+
+  // a rule pointing at a category you don't own is rejected
+  expect((await req('POST', '/api/category-rules', alice, { pattern: 'Z', categoryId: 999999 })).statusCode).toBe(400);
+  expect((await req('POST', '/api/category-rules', bob, { pattern: 'Y', categoryId: subs })).statusCode).toBe(400);
+
+  // list + delete
+  expect(((await req('GET', '/api/category-rules', alice)).json() as { pattern: string }[]).some((r) => r.pattern === 'IKEA')).toBe(true);
+  expect((await req('DELETE', `/api/category-rules/${ruleId}`, alice)).statusCode).toBe(204);
+  // deletion actually removed it, not just returned 204
+  expect(((await req('GET', '/api/category-rules', alice)).json() as { pattern: string }[]).some((r) => r.pattern === 'IKEA')).toBe(false);
 });
