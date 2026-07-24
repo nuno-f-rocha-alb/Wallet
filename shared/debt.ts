@@ -74,8 +74,13 @@ export function amortize({ outstandingCents, annualRateBps, paymentCents, startM
     const currentMonth = startMonth ? monthPlus(startMonth, months) : null;
     if (holdTermTo && rateChange && currentMonth && paymentAfterChange === null && currentMonth >= rateChange.fromMonth) {
       const remaining = monthsBetween(currentMonth, holdTermTo) + 1; // inclusive of the last month
-      payment = annuityPayment(bal, monthlyRate(months), remaining);
-      paymentAfterChange = payment;
+      // A term that has already elapsed can't be held: re-levelling would ask for the whole
+      // balance in one payment, and the interest on it would still leave a residue — reporting
+      // a "held" term it then overshoots. Keep the contractual payment and let the term run on.
+      if (remaining > 0) {
+        payment = annuityPayment(bal, monthlyRate(months), remaining);
+        paymentAfterChange = payment;
+      }
     }
     const interest = Math.round(bal * monthlyRate(months));
     let principal = payment - interest;

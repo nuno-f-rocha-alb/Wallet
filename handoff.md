@@ -74,9 +74,18 @@ gate (typecheck/lint/test/build) → build & push image to **ghcr.io/nuno-f-roch
 - `npm run build` now runs `fetch:ocr` first (downloads ~18 MB of traineddata); the Docker build
   bakes them in. `web/public/tesseract/` is gitignored.
 
+## Outstanding delivery item
+- ⏳ **Manual browser smoke test: receipt scan against the self-hosted OCR assets.** Everything
+  else is verified, but the in-browser camera→OCR→confirm round trip has NOT been re-run since
+  the models moved from the tesseract.js CDN to vendored, uncompressed `tessdata_fast` served
+  same-origin under the new CSP. No `file_upload` on the agent surface. If the assets are wrong
+  it fails loudly (the CDN fallback is gone by design). If accuracy regresses, switch the fetch
+  script to `tessdata_best`.
+
 ## Next
 All 7 spec phases, the debt tracker, and the whole deferred backlog (payment recalc, receipt
-thumbnails, generic CSV import, self-hosted OCR + CSP) are **done and merged**.
+thumbnails, generic CSV import, self-hosted OCR + CSP) are **done and merged** (pending the smoke
+test above).
 
 **Not planned** (owner's call): **investments** (buys/sells, realized P/L, DCA) — "keep it in
 backup", i.e. an idea on file, not scheduled.
@@ -95,9 +104,11 @@ wsl -d Debian -e sh -lc "cd /mnt/c/Users/nunob/Repositorios/Wallet && coderabbit
 
 ## Resume line
 Open a new session in this repo, say **resume flow**; read `handoff.md` +
-`specs/wallet.md` + the `journal.md` tail. **Everything is built, CodeRabbit-clean and merged to `main`,
-and pushed to a private GitHub repo with CI publishing a GHCR image on push.** Only the spec's
-Deferred list and the (unwanted) investments module remain.
+`specs/wallet.md` + the `journal.md` tail. **Everything is built, CodeRabbit-clean and merged to
+`main`, and pushed to a private GitHub repo with CI publishing a GHCR image on push.** Two open
+items: (1) the **receipt-scan smoke test** against the self-hosted OCR assets, and (2) the
+**history scrub** decision (real NIB in pre-scrub commits). Then only the spec's Deferred list and
+the (unwanted) investments module remain.
 
 ## Gotchas (this machine)
 - Node 25 local; `node:sqlite` loaded via `createRequire` so Vite/vitest don't choke.

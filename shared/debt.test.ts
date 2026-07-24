@@ -101,6 +101,22 @@ describe('amortize', () => {
     expect(r.payoffMonths).toBe(5); // 2026-08 … 2026-12, the contractual end
   });
 
+  it('an already-elapsed contractual term is not "held"', () => {
+    // holdTermTo is in the past (loan overran). Re-levelling would demand the whole balance at
+    // once and still leave interest behind, while claiming the term was held.
+    const r = amortize({
+      outstandingCents: 100000,
+      annualRateBps: 1200,
+      paymentCents: 10000,
+      startMonth: '2026-08',
+      rateChange: { fromMonth: '2026-06', annualRateBps: 2400 },
+      holdTermTo: '2026-01', // already past
+    });
+    expect(r.paymentAfterChangeCents).toBeNull(); // no false "term held" claim
+    expect(r.payoffMonths).toBeGreaterThan(0); // still amortizes at the contractual payment
+    expect(r.totalInterestCents).not.toBeNull();
+  });
+
   it('annuityPayment matches the standard formula (and 0% divides evenly)', () => {
     expect(annuityPayment(100000, 0, 10)).toBe(10000);
     // €7,065.78 at 9.5%/yr over 120 months → €91.43 (a real lender quote)
