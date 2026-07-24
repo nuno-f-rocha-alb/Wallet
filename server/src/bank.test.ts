@@ -227,17 +227,40 @@ test('GET /api/suggest-category serves receipt/manual entry from rules + user-wi
   const eatingOut = cats.find((c) => c.name === 'Eating out')!.id;
   const fuel = cats.find((c) => c.name === 'Fuel')!.id;
 
-  // history lives in one account; the suggestion is user-wide, so it applies with no account context
-  await req('POST', '/api/transactions', alice, { date: '2026-02-01', amountCents: -1500, accountId: a1.id, categoryId: eatingOut, description: 'MCDONALDS LISBOA' });
-  expect(await suggest('MCDONALDS PORTO')).toBe(eatingOut); // generalized across the tail, any account
+  // history lives in one account; the suggestion is user-wide, so it applies with no account context.
+  // Coined merchant names (not in the common-rule seed) so only history/our rule can match them.
+  await req('POST', '/api/transactions', alice, { date: '2026-02-01', amountCents: -1500, accountId: a1.id, categoryId: eatingOut, description: 'ZBISTRO LISBOA' });
+  expect(await suggest('ZBISTRO PORTO')).toBe(eatingOut); // generalized across the tail, any account
 
-  // a *conflicting* history in another account: GALP was categorized Eating out before…
-  await req('POST', '/api/transactions', alice, { date: '2026-02-02', amountCents: -6000, accountId: a2.id, categoryId: eatingOut, description: 'PAG GALP ENERGIA' });
-  expect(await suggest('PAG GALP ENERGIA')).toBe(eatingOut); // history alone → Eating out
-  // …but a rule maps GALP → Fuel, and rules override learned history
-  await req('POST', '/api/category-rules', alice, { pattern: 'GALP', categoryId: fuel });
-  expect(await suggest('PAG GALP ENERGIA')).toBe(fuel);
+  // a *conflicting* history in another account: ZSHOP was categorized Eating out before…
+  await req('POST', '/api/transactions', alice, { date: '2026-02-02', amountCents: -6000, accountId: a2.id, categoryId: eatingOut, description: 'PAG ZSHOP ONLINE' });
+  expect(await suggest('PAG ZSHOP ONLINE')).toBe(eatingOut); // history alone → Eating out
+  // …but a rule maps ZSHOP → Fuel, and rules override learned history
+  await req('POST', '/api/category-rules', alice, { pattern: 'ZSHOP', categoryId: fuel });
+  expect(await suggest('PAG ZSHOP ONLINE')).toBe(fuel);
 
   // nothing to go on → null
   expect(await suggest('zzzz')).toBeNull();
+});
+
+test('seeding common rules is idempotent and categorizes a well-known merchant', async () => {
+  // Charlie is a fresh user, so seedDefaults already gave them the common rules.
+  const charlie = { 'remote-user': 'charlie' };
+  const seeded = (await req('GET', '/api/category-rules', charlie)).json() as { pattern: string }[];
+  expect(seeded.some((r) => r.pattern === 'KFC')).toBe(true);
+  // no two seeded rules share a normalized pattern (case/spacing dedup held)
+  const norms = seeded.map((r) => normalizeDesc(r.pattern));
+  expect(new Set(norms).size).toBe(norms.length);
+
+  // KFC → Eating out out of the box, no history needed
+  const cats = (await req('GET', '/api/categories', charlie)).json() as Category[];
+  const eatingOut = cats.find((c) => c.name === 'Eating out')!.id;
+  const s = (await req('GET', '/api/suggest-category?description=' + encodeURIComponent('KFC COIMBRA'), charlie)).json() as { categoryId: number | null };
+  expect(s.categoryId).toBe(eatingOut);
+
+  // re-seeding adds nothing (idempotent)
+  const before = ((await req('GET', '/api/category-rules', charlie)).json() as unknown[]).length;
+  const { added } = (await req('POST', '/api/category-rules/seed', charlie)).json() as { added: number };
+  expect(added).toBe(0);
+  expect(((await req('GET', '/api/category-rules', charlie)).json() as unknown[]).length).toBe(before);
 });

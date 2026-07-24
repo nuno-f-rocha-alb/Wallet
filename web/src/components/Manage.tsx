@@ -10,6 +10,7 @@ import {
   useImports,
   useRevertImport,
   useSaveCategoryRule,
+  useSeedCategoryRules,
 } from '../api';
 import { money } from '../format';
 import { btnDanger, btnGhost, btnPrimary, card, input } from './ui';
@@ -37,6 +38,7 @@ export function Manage({
   const rules = useCategoryRules();
   const saveRule = useSaveCategoryRule();
   const delRule = useDeleteCategoryRule();
+  const seedRules = useSeedCategoryRules();
   const [dataMsg, setDataMsg] = useState<string>();
   const [pattern, setPattern] = useState('');
   const [ruleCat, setRuleCat] = useState<number | ''>('');
@@ -143,11 +145,15 @@ export function Manage({
       </section>
 
       <section>
-        <h3 className="mb-2 text-sm font-semibold text-slate-500">Auto-categorize imports</h3>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-500">Auto-categorize imports</h3>
+          <button className={btnGhost} disabled={seedRules.isPending} onClick={() => seedRules.mutate()}>Add common rules</button>
+        </div>
         <div className={`${card} space-y-3 p-3`}>
           <p className="text-xs text-slate-400">
             When a bank/CSV import row&rsquo;s description contains the text, pre-select the category. Rules win over
-            learned history; you always confirm on the review screen.
+            learned history; you always confirm on the review screen. &ldquo;Add common rules&rdquo; seeds well-known
+            merchants (KFC → Eating out, Continente → Groceries, Galp → Fuel…).
           </p>
           <div className="flex flex-wrap items-end gap-2">
             <label className="sr-only" htmlFor="rule-pattern">Description text to match</label>

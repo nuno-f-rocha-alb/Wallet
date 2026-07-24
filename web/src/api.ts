@@ -164,6 +164,14 @@ export function useDeleteCategoryRule() {
   });
 }
 
+export function useSeedCategoryRules() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ added: number }>('/category-rules/seed', { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['categoryRules'] }),
+  });
+}
+
 // ---- car ----
 
 export const useVehicles = () =>

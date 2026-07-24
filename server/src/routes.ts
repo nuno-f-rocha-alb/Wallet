@@ -11,6 +11,7 @@ import * as receipts from './receipts.js';
 import * as stats from './stats.js';
 import * as backup from './backup.js';
 import * as debt from './debt.js';
+import { seedCommonRules } from './seed.js';
 import * as S from './schemas.js';
 
 function uid(req: FastifyRequest): number {
@@ -78,6 +79,7 @@ export function registerRoutes(app: FastifyInstance): void {
     svc.deleteCategoryRule(getDb(), uid(req), paramId(req));
     return reply.code(204).send();
   });
+  app.post('/api/category-rules/seed', async (req) => ({ added: seedCommonRules(getDb(), uid(req)) }));
 
   // ---- transactions ----
   app.get('/api/transactions', async (req) =>
