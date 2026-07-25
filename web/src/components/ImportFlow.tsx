@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Account, Category, ImportPreview } from '@wallet/shared';
 import { parseStatement, type ParsedStatement } from '@wallet/shared/parsers';
-import { guessMapping, parseCsv, rowsFromCsv, type CsvMapping } from '@wallet/shared/csv';
+import { balanceIsConsistent, guessMapping, parseCsv, rowsFromCsv, statementEndBalanceCents, type CsvMapping } from '@wallet/shared/csv';
 import { useCommitImport, usePreviewImport } from '../api';
 import { extractPdfText } from '../lib/extractPdf';
 import { money } from '../format';
@@ -32,7 +32,18 @@ export function ImportFlow({
   const [staged, setStaged] = useState<ImportPreview | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [cats, setCats] = useState<Record<number, number | ''>>({});
-  const [result, setResult] = useState<{ inserted: number; skipped: number } | null>(null);
+  const [reconcile, setReconcile] = useState(true);
+  const [result, setResult] = useState<{ inserted: number; skipped: number; openingBalanceCents?: number } | null>(null);
+
+  // CSV only: the statement's current book balance and whether its running-balance column reconciles.
+  const endBalanceCents = useMemo(() => (csvTable ? statementEndBalanceCents(csvTable, mapping) : null), [csvTable, mapping]);
+  const canReconcile = useMemo(
+    () => !!csvTable && endBalanceCents !== null && balanceIsConsistent(csvTable, mapping),
+    [csvTable, mapping, endBalanceCents],
+  );
+  // Reconcile targets the whole statement's balance, so it's only sound when every new row is
+  // imported. Deselecting a row would otherwise let the opening balance hide the omitted transaction.
+  const allNewRowsSelected = !!staged && staged.rows.every((r, i) => r.status !== 'new' || selected.has(i));
 
   const catOptions = useMemo(
     () =>
@@ -106,7 +117,8 @@ export function ImportFlow({
     if (!staged) return; // `parsed` is only set on the PDF path — CSV imports have none
     const rows = [...selected].map((i) => ({ ...staged.rows[i], categoryId: cats[i] === '' ? null : (cats[i] as number) }));
     if (rows.length === 0) return;
-    const res = await commit.mutateAsync({ accountId, source, description: parsed?.bankName ?? 'CSV import', rows });
+    const reconcileToBalanceCents = canReconcile && reconcile && allNewRowsSelected ? endBalanceCents : null;
+    const res = await commit.mutateAsync({ accountId, source, description: parsed?.bankName ?? 'CSV import', rows, reconcileToBalanceCents });
     setResult(res);
     setStep('done');
   }
@@ -126,6 +138,9 @@ export function ImportFlow({
           Imported <b>{result?.inserted ?? 0}</b> transaction(s)
           {result && result.skipped > 0 ? `, skipped ${result.skipped} duplicate(s)` : ''}.
         </p>
+        {result?.openingBalanceCents !== undefined && (
+          <p className="text-sm text-slate-500">Opening balance adjusted so this account matches your bank.</p>
+        )}
         <p className="text-xs text-slate-400">Undo removes this whole batch. You can also edit rows in Transactions.</p>
         <div className="flex justify-end">
           <button className={btnPrimary} onClick={onClose}>Done</button>
@@ -139,13 +154,13 @@ export function ImportFlow({
     // Same column for both would parse every row as unreadable — catch it before staging.
     const distinct = mapping.date !== mapping.amount;
     const ready = mapping.date >= 0 && mapping.amount >= 0 && distinct;
-    const colSelect = (key: 'date' | 'amount' | 'description', text: string) => (
+    const colSelect = (key: 'date' | 'amount' | 'description' | 'balance', text: string) => (
       <div>
         <label className={label} htmlFor={`map-${key}`}>{text}</label>
         <select
           id={`map-${key}`}
           className={input}
-          value={mapping[key]}
+          value={mapping[key] ?? -1}
           onChange={(e) => setMapping((m) => ({ ...m, [key]: Number(e.target.value) }))}
         >
           <option value={-1}>— none —</option>
@@ -163,6 +178,7 @@ export function ImportFlow({
         {colSelect('date', 'Date column')}
         {colSelect('amount', 'Amount column')}
         {colSelect('description', 'Description column')}
+        {colSelect('balance', 'Balance column (optional — reconciles to your bank)')}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" className="h-4 w-4" checked={!!mapping.invertSign} onChange={(e) => setMapping((m) => ({ ...m, invertSign: e.target.checked }))} />
           Expenses are listed as positive (flip signs)
@@ -232,6 +248,16 @@ export function ImportFlow({
             </tbody>
           </table>
         </div>
+
+        {canReconcile && allNewRowsSelected && endBalanceCents !== null && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="h-4 w-4" checked={reconcile} onChange={(e) => setReconcile(e.target.checked)} />
+            Match my bank's balance ({money(endBalanceCents)})
+          </label>
+        )}
+        {csvTable && mapping.balance != null && mapping.balance >= 0 && !canReconcile && (
+          <p className="text-xs text-slate-400">Balance column doesn't reconcile cleanly — opening balance left unchanged.</p>
+        )}
 
         {commit.error && <p className="text-sm text-red-600">{commit.error.message}</p>}
         <div className="flex items-center justify-between">

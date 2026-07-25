@@ -76,12 +76,12 @@ gate (typecheck/lint/test/build) → build & push image to **ghcr.io/nuno-f-roch
   the Docker build bakes them in. `web/public/tesseract/` is gitignored.
 
 ## Next — queued task
-➡️ **Auto opening-balance from CSV** — a fresh session should build this. Full spec:
-[`specs/csv-opening-balance.md`](specs/csv-opening-balance.md). Read that file, then implement +
-gate + CodeRabbit + commit/push. TL;DR: read the CSV's "Saldo contabilístico" running-balance
-column and, opt-in, set the account's opening balance so a CSV import reconciles to the bank to the
-cent (no new migration; folds into `commitImport`). Owner chose this over the "available/held
-amount" display, which stays deferred.
+✅ **Auto opening-balance from CSV** — DONE (`journal.md §11`, branch `flow/csv-opening-balance` →
+merged). Reads the CSV "Saldo contabilístico" running-balance column and, opt-in, adjusts the
+account's opening balance so a CSV import reconciles to the bank to the cent (no migration; folds
+into `commitImport`). The "available/held amount" display stays deferred.
+
+*No queued task.* Backlog below is all deferred/optional.
 
 All 7 spec phases, the debt tracker, and the whole deferred backlog (payment recalc, receipt
 thumbnails, generic CSV import, self-hosted OCR + CSP) are **done and merged**. Receipt scan
