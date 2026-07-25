@@ -264,3 +264,18 @@ test('seeding common rules is idempotent and categorizes a well-known merchant',
   expect(added).toBe(0);
   expect(((await req('GET', '/api/category-rules', charlie)).json() as unknown[]).length).toBe(before);
 });
+
+test('two genuine same-amount charges on adjacent days both import (no fuzzy self-dedup)', async () => {
+  const acct = (await req('POST', '/api/accounts', alice, { name: 'Tolls', type: 'bank' })).json() as Account;
+  const rows: ParsedRow[] = [
+    { date: '2026-07-23', amountCents: -85, description: 'A1' }, // two real tolls, one day apart
+    { date: '2026-07-24', amountCents: -85, description: 'A1' },
+  ];
+  // preview already treats them as two distinct rows…
+  const prev = (await req('POST', '/api/import/preview', alice, { accountId: acct.id, rows })).json() as ImportPreview;
+  expect(prev.newCount).toBe(2);
+  // …and commit must insert both (the old incremental fuzzy index silently dropped one)
+  const commit = (await req('POST', '/api/import/commit', alice, { accountId: acct.id, source: 'csv', description: 'tolls', rows: prev.rows })).json() as CommitResult;
+  expect(commit.inserted).toBe(2);
+  expect(commit.skipped).toBe(0);
+});

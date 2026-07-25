@@ -237,8 +237,11 @@ export function commitImport(
       `INSERT INTO transactions(user_id,date,amount_cents,account_id,category_id,description,note,source,external_ref,import_id)
        VALUES(?,?,?,?,?,?,NULL,'bank',?,?)`,
     );
-    // Re-check dedup at commit time so a double-submit can't insert twice. Indexed so a
-    // large batch stays ~O(n) instead of O(n²) inside this synchronous transaction.
+    // Dedup against what was already recorded BEFORE this import (frozen), so commit matches the
+    // preview exactly. We only track newly-inserted *refs* incrementally — enough to drop a
+    // repeated exact ref within the batch — but NOT their fuzzy (amount+desc) fingerprint, so two
+    // genuine same-amount charges on adjacent days (e.g. two tolls) both import instead of one
+    // silently swallowing the other. assignRefs already gives distinct refs to same-day repeats.
     const idx = buildIndex(existingFor(db, userId, input.accountId));
     let inserted = 0;
     let skipped = 0;
@@ -250,7 +253,7 @@ export function commitImport(
       }
       const categoryId = (input.rows[i].categoryId as number | null | undefined) ?? null;
       insert.run(userId, r.date, r.amountCents, input.accountId, categoryId, r.description, r.externalRef, importId);
-      addToIndex(idx, { date: r.date, amountCents: r.amountCents, description: r.description, externalRef: r.externalRef, categoryId });
+      idx.refs.add(r.externalRef); // exact-ref guard only; do not feed the fuzzy buckets
       inserted++;
     }
     db.prepare('UPDATE bank_imports SET row_count=? WHERE id=?').run(inserted, importId);
