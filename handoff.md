@@ -75,10 +75,18 @@ gate (typecheck/lint/test/build) → build & push image to **ghcr.io/nuno-f-roch
 - `npm run build` runs `fetch:ocr` first (downloads ~6 MB of official, SHA-256-pinned traineddata);
   the Docker build bakes them in. `web/public/tesseract/` is gitignored.
 
-## Next
+## Next — queued task
+➡️ **Auto opening-balance from CSV** — a fresh session should build this. Full spec:
+[`specs/csv-opening-balance.md`](specs/csv-opening-balance.md). Read that file, then implement +
+gate + CodeRabbit + commit/push. TL;DR: read the CSV's "Saldo contabilístico" running-balance
+column and, opt-in, set the account's opening balance so a CSV import reconciles to the bank to the
+cent (no new migration; folds into `commitImport`). Owner chose this over the "available/held
+amount" display, which stays deferred.
+
 All 7 spec phases, the debt tracker, and the whole deferred backlog (payment recalc, receipt
 thumbnails, generic CSV import, self-hosted OCR + CSP) are **done and merged**. Receipt scan
 against the self-hosted assets was smoke-tested by the owner on localhost — works. Repo is public.
+Latest import fix: commit no longer fuzzy-dedups rows against their own batch (`2d4bd20`).
 
 **Not planned** (owner's call): **investments** (buys/sells, realized P/L, DCA) — "keep it in
 backup", i.e. an idea on file, not scheduled.
