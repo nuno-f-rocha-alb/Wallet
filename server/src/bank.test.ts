@@ -265,6 +265,41 @@ test('seeding common rules is idempotent and categorizes a well-known merchant',
   expect(((await req('GET', '/api/category-rules', charlie)).json() as unknown[]).length).toBe(before);
 });
 
+test('reconcileToBalanceCents sets the opening balance so the account matches the statement', async () => {
+  // fresh account: import 3 rows summing to +86,04; reconcile to a bank balance of 85,96.
+  const fresh = (await req('POST', '/api/accounts', alice, { name: 'Recon', type: 'bank' })).json() as Account;
+  const rows: ParsedRow[] = [
+    { date: '2026-06-20', amountCents: 8150, description: 'Salary' },
+    { date: '2026-06-10', amountCents: -2550, description: 'Lidl' },
+    { date: '2026-06-01', amountCents: 3004, description: 'Refund' },
+  ]; // Σ = 8604
+  const c = (await req('POST', '/api/import/commit', alice, {
+    accountId: fresh.id, source: 'csv', description: 'CSV', rows, reconcileToBalanceCents: 8596,
+  })).json() as CommitResult;
+  expect(c.inserted).toBe(3);
+  expect(c.openingBalanceCents).toBe(8596 - 8604); // opening nudged by target − Σ
+  let accs = (await req('GET', '/api/accounts', alice)).json() as Account[];
+  expect(accs.find((a) => a.id === fresh.id)!.balanceCents).toBe(8596); // reconciled to the cent
+
+  // populated account: a prior hand-entered tx, then reconcile — opening adjusts by the delta only.
+  const pop = (await req('POST', '/api/accounts', alice, { name: 'Recon2', type: 'bank', openingBalanceCents: 5000 })).json() as Account;
+  await req('POST', '/api/transactions', alice, { date: '2026-05-01', amountCents: -1000, accountId: pop.id, description: 'Manual' });
+  const c2 = (await req('POST', '/api/import/commit', alice, {
+    accountId: pop.id, source: 'csv', description: 'CSV', rows: [{ date: '2026-06-02', amountCents: -500, description: 'Shop' }], reconcileToBalanceCents: 12345,
+  })).json() as CommitResult;
+  expect(c2.inserted).toBe(1);
+  accs = (await req('GET', '/api/accounts', alice)).json() as Account[];
+  expect(accs.find((a) => a.id === pop.id)!.balanceCents).toBe(12345);
+
+  // omitting reconcile leaves the opening balance untouched
+  const c3 = (await req('POST', '/api/import/commit', alice, {
+    accountId: pop.id, source: 'csv', description: 'CSV', rows: [{ date: '2026-06-03', amountCents: -100, description: 'Shop2' }],
+  })).json() as CommitResult;
+  expect(c3.openingBalanceCents).toBeUndefined();
+  accs = (await req('GET', '/api/accounts', alice)).json() as Account[];
+  expect(accs.find((a) => a.id === pop.id)!.balanceCents).toBe(12345 - 100);
+});
+
 test('two genuine same-amount charges on adjacent days both import (no fuzzy self-dedup)', async () => {
   const acct = (await req('POST', '/api/accounts', alice, { name: 'Tolls', type: 'bank' })).json() as Account;
   const rows: ParsedRow[] = [

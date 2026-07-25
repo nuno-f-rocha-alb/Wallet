@@ -283,7 +283,7 @@ export function usePreviewImport() {
 export function useCommitImport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { accountId: number; source: 'pdf' | 'csv'; description: string; rows: (ParsedRow & { categoryId: number | null })[] }) =>
+    mutationFn: (body: { accountId: number; source: 'pdf' | 'csv'; description: string; rows: (ParsedRow & { categoryId: number | null })[]; reconcileToBalanceCents?: number | null }) =>
       api<CommitResult>('/import/commit', jsonBody(body)),
     onSuccess: () => {
       invalidateLedger(qc);

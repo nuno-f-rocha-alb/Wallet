@@ -245,6 +245,7 @@ export interface CommitResult {
   importId: number;
   inserted: number;
   skipped: number; // rows that turned out to be duplicates at commit time
+  openingBalanceCents?: number; // set when the import reconciled the account to the statement balance
 }
 
 // --- Phase 6: statistics & data portability ---

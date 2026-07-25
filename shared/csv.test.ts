@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { guessMapping, parseCsv, rowsFromCsv, toIsoDate } from './csv.js';
+import { balanceIsConsistent, guessMapping, parseCsv, rowsFromCsv, statementEndBalanceCents, toIsoDate } from './csv.js';
 import { parseAmountCell } from './money.js';
 
 describe('parseCsv', () => {
@@ -83,6 +83,51 @@ describe('guessMapping + rowsFromCsv', () => {
   });
 
   it('reports -1 for columns it cannot identify', () => {
-    expect(guessMapping(['foo', 'bar'])).toEqual({ date: -1, amount: -1, description: -1 });
+    expect(guessMapping(['foo', 'bar'])).toEqual({ date: -1, amount: -1, description: -1, balance: -1 });
+  });
+});
+
+describe('balance reconcile helpers', () => {
+  // CGD-style: newest-first, running balance in "Saldo". Opening 60,00 → chains to 85,96 latest:
+  // 60,00 −30,04(PINGO)=29,96, −25,50(LIDL)=4,46, +81,50(SALARIO)=85,96.
+  const consistent = [
+    'Data mov;Descrição;Valor;Saldo',
+    '2026-06-20;SALARIO;81,50;85,96', // newest → latest balance
+    '2026-06-10;LIDL;-25,50;4,46',
+    '2026-06-01;PINGO;-30,04;29,96', // oldest
+  ].join('\n');
+
+  it('detects the balance column from the header', () => {
+    expect(guessMapping(parseCsv(consistent)[0])).toMatchObject({ date: 0, amount: 2, balance: 3 });
+  });
+
+  it('reads the latest (newest-first, top row) balance', () => {
+    const table = parseCsv(consistent);
+    expect(statementEndBalanceCents(table, guessMapping(table[0]))).toBe(8596);
+  });
+
+  it('accepts a running balance that reconciles', () => {
+    const table = parseCsv(consistent);
+    expect(balanceIsConsistent(table, guessMapping(table[0]))).toBe(true);
+  });
+
+  it('rejects a mis-mapped / inconsistent balance column', () => {
+    // Correct endpoints + amounts, but the MIDDLE Saldo is corrupted → an endpoint-only check
+    // would wrongly pass; the per-transition check must catch the broken interior row.
+    const bad = [
+      'Data mov;Descrição;Valor;Saldo',
+      '2026-06-20;SALARIO;81,50;85,96',
+      '2026-06-10;LIDL;-25,50;999,99',
+      '2026-06-01;PINGO;-30,04;29,96',
+    ].join('\n');
+    const table = parseCsv(bad);
+    expect(balanceIsConsistent(table, guessMapping(table[0]))).toBe(false);
+  });
+
+  it('returns null / false when there is no balance column', () => {
+    const table = parseCsv('Data mov;Descrição;Valor\n2026-06-01;LIDL;-25,50');
+    const m = guessMapping(table[0]);
+    expect(statementEndBalanceCents(table, m)).toBeNull();
+    expect(balanceIsConsistent(table, m)).toBe(false);
   });
 });

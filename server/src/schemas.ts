@@ -165,6 +165,9 @@ export const importCommit = z.object({
     .array(parsedRow.extend({ categoryId: z.number().int().positive().nullable().default(null) }))
     .min(1)
     .max(5000),
+  // Target book balance from the statement's running-balance column; adjusts the opening balance
+  // so the account reconciles to the bank. null = don't touch the opening balance.
+  reconcileToBalanceCents: cents.nullable().default(null),
 });
 
 // --- Phase 5: receipts ---

@@ -220,7 +220,13 @@ export function previewImport(db: DatabaseSync, userId: number, accountId: numbe
 export function commitImport(
   db: DatabaseSync,
   userId: number,
-  input: { accountId: number; source: ImportSource; description: string; rows: (ParsedRow & { categoryId?: number | null })[] },
+  input: {
+    accountId: number;
+    source: ImportSource;
+    description: string;
+    rows: (ParsedRow & { categoryId?: number | null })[];
+    reconcileToBalanceCents?: number | null;
+  },
 ): CommitResult {
   assertAccount(db, userId, input.accountId);
   assertCategoriesOwned(db, userId, input.rows.map((r) => r.categoryId)); // reject cross-user / unknown categories
@@ -257,8 +263,25 @@ export function commitImport(
       inserted++;
     }
     db.prepare('UPDATE bank_imports SET row_count=? WHERE id=?').run(inserted, importId);
+
+    // Reconcile: nudge the opening balance so opening + Σtx == the statement's book balance. Runs
+    // inside the tx and after the inserts, so it targets the final balance regardless of how many
+    // rows dedup dropped (count-independent). Works for a fresh or already-populated account.
+    let openingBalanceCents: number | undefined;
+    if (input.reconcileToBalanceCents != null) {
+      const acc = db
+        .prepare(
+          `SELECT opening_balance_cents AS opening, opening_balance_cents + COALESCE(
+             (SELECT SUM(amount_cents) FROM transactions WHERE account_id=? AND user_id=?), 0) AS balance
+           FROM accounts WHERE id=? AND user_id=?`,
+        )
+        .get(input.accountId, userId, input.accountId, userId) as { opening: number; balance: number };
+      openingBalanceCents = acc.opening + (input.reconcileToBalanceCents - acc.balance);
+      db.prepare('UPDATE accounts SET opening_balance_cents=? WHERE id=? AND user_id=?').run(openingBalanceCents, input.accountId, userId);
+    }
+
     db.exec('COMMIT');
-    return { importId, inserted, skipped };
+    return { importId, inserted, skipped, ...(openingBalanceCents !== undefined && { openingBalanceCents }) };
   } catch (e) {
     db.exec('ROLLBACK');
     throw e;

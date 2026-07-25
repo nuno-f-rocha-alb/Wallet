@@ -425,3 +425,37 @@ references in `journal.md`/`handoff.md` via filter-repo's commit-map so the audi
 resolves. Backed up the pre-purge history to `scratchpad/wallet-pre-purge.bundle` first. Re-added
 `origin`, force-pushed, then set the repo public. All prior clones/backups still hold the old
 history — but only this machine had one.
+
+
+---
+
+## §11 — CSV auto opening-balance (reconcile to bank)
+
+A CSV statement carries transactions but not the balance the account started from, so after a CSV
+import Wallet's balance was off by exactly the missing opening amount (real case: bank €85,96,
+Wallet €64,03). CGD's "Consulta de movimentos" export carries a running-balance column ("Saldo
+contabilístico"); read it and, opt-in, adjust the account's opening balance so the import
+reconciles to the bank to the cent. **No migration** — reuses `opening_balance_cents`.
+
+- **`shared/csv.ts`**: `CsvMapping.balance?`; `guessMapping` detects it (`/^(saldo|balance)/i`);
+  `statementEndBalanceCents` = the newest row's running balance (CGD is newest-first → top row);
+  `balanceIsConsistent` validates **every adjacent transition** chains (each row's balance − its
+  amount == the next-older row's balance, ±1 cent). Endpoint-only checking would pass a mis-mapped
+  interior row — CodeRabbit caught that; the per-transition check is the fix.
+- **Server** (`bank.ts` + `schemas.ts`): `importCommit` gains `reconcileToBalanceCents` (nullable).
+  `commitImport` folds the reconcile into the same transaction *after* the inserts: read
+  `opening + Σtx`, set `opening += target − balance`. Count-independent (targets the final balance,
+  not the row count) → robust whether dedup dropped rows or the account was fresh/populated.
+  Returns the applied `openingBalanceCents`.
+- **Web** (`ImportFlow.tsx`): a "Balance column" select in the map step (pre-filled from
+  `guessMapping`); on review, a **"Match my bank's balance (€X)"** checkbox when the column
+  reconciles, a subtle "doesn't reconcile" note when it doesn't. Only offered/sent when **all** new
+  rows are selected — deselecting a row would otherwise let the opening balance silently hide the
+  omitted transaction (CodeRabbit caught this too).
+
+**Gate**: typecheck ✓ · lint ✓ · vitest **76/76** (+9 csv reconcile helpers, +1 server reconcile
+integration for fresh/populated/omitted) ✓ · build ✓. Live-verified via the reconcile integration
+test hitting the real `/api/import/commit` → `GET /api/accounts` == target to the cent.
+**CodeRabbit**: 3 findings first pass (2 major: interior-transition check, partial-import guard;
+1 minor: test comment) all fixed → 1 minor on re-run (isolate the interior-failure fixture) fixed →
+clean.
